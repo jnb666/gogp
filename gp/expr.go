@@ -4,13 +4,15 @@ import (
     "fmt"
 )
 
-// A Value is an alias for the empty interface and is used for generic functions. 
-// An implementation will provide which functions which operation on a concrete type
+// The Value type is defined as an empty interface hence any type can be used for a specific model.
+// Note that typed GP is not yet supported, it's assumed all values will be of the same type 
+// for a given data set. See gogp/num for an example of implementing a floating point numeric type.
 type Value interface{}
 
-// An Opcode is the interface type for an atomic operation. Arity returns the number of arguments,
-// Eval executes the operation, String returns the name of the opcode and Format is used to 
-// format an expression in infix notation.
+// The basic atom of the model is the Opcode interface. The implemention must supply the Eval 
+// method to evalute an opcode, an Arity method to define the number of arguments a String method
+// which returns the opcode name and a Format method which returns the opcode in the context of an
+// expression in a human readabile format. 
 type Opcode interface {
     Arity() int
     Eval(...Value) Value
@@ -18,7 +20,9 @@ type Opcode interface {
     Format(...string) string
 }
 
-// An Expr is a list of Opcodes representing a code tree.
+// The Expr type is defined a slice of Opcodes. An expression is stored internally as a list in prefix
+// notation to represent the opcode tree. Methods are provided to evaluate an expression given specified
+// terminal nodes.
 type Expr []Opcode
 
 // A PrimSet represents the set of all of primitive Opcodes for a given run. 

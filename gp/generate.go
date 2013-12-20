@@ -6,7 +6,10 @@ import (
     "fmt"
 )
 
-// The Population is a list of individuals.
+// A Population is a slice of individuals. Implementations of the Selection interface are 
+// provided to pick a subset from the population, and of the Variation interface to provide mutation
+// and crossover genetic operators. Decorators can be used to further customise a Variation, 
+// e.g. for size limits for bloat control.
 type Population []*Individual
 
 // CreatePopulation creates a new population of args.PopSize using the provided generator and

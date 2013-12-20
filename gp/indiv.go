@@ -2,12 +2,15 @@ package gp
 import "fmt"
 
 // An Evaluator is provided by the implementation to calculate the fitness of an individual.
+// The fitness should be a normalised fitness value, i.e. a number in the range 0 to 1 
+// where 0 is the worst possible and 1 represents a perfect solution to the problem.
 type Evaluator interface {
     GetFitness(code Expr) (fit float64, ok bool)
 }
 
-// An Individual represents a single "organism" which has a program and stores the fitness if it 
-// has been evaluated yet. 
+// An Individual element of the population has a code expression which represents the genome 
+// and a fitness value as calculated by the implementation of the Evaluator interface.
+// Methods are provided to apply generic operations to individuals via the Variator interface.
 type Individual struct {
     Code  Expr
     Fitness  float64

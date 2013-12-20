@@ -1,3 +1,4 @@
+// gogp is a library for Koza style genetic programming in Go.
 package gp
 import (
     "math/rand"
