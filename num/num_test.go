@@ -3,7 +3,7 @@ import (
 	"testing"
     "math/rand"
     "math"
-    "gogp/gp"
+    "github.com/jnb666/gogp/gp"
 )
 
 var Rand = Terminal("rand", func()Num { return Num(rand.Float64()) })

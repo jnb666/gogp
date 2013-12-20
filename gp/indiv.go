@@ -1,5 +1,7 @@
 package gp
-import "fmt"
+import (
+    "fmt"
+)
 
 // An Evaluator is provided by the implementation to calculate the fitness of an individual.
 // The fitness should be a normalised fitness value, i.e. a number in the range 0 to 1 

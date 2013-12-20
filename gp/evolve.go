@@ -2,7 +2,6 @@
 package gp
 import (
     "math/rand"
-    _ "fmt"
 )
 
 // Config is used for global configuration settings

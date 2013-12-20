@@ -9,8 +9,8 @@ import (
     "runtime/pprof"
     _ "math"
     "math/rand"
-    "gogp/gp"
-    . "gogp/num"
+    "github.com/jnb666/gogp/gp"
+    . "github.com/jnb666/gogp/num"
 )
 
 // constants

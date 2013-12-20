@@ -2,7 +2,7 @@
 package num
 import (
     "fmt"
-    "gogp/gp"
+    "github.com/jnb666/gogp/gp"
 )
 
 const DIVIDE_PROTECT = 1e-10
