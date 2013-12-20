@@ -1,4 +1,4 @@
-// Package num provides a floating point numeric type and associated operations.
+// Package num provides a floating point numeric type and associated operations for gogp.
 package num
 import (
     "fmt"
@@ -8,68 +8,57 @@ import (
 const DIVIDE_PROTECT = 1e-10
 
 var (
-    Add = Operator("+", func(a, b Num)Num { return a+b })
-    Sub = Operator("-", func(a, b Num)Num { return a-b })
-    Mul = Operator("*", func(a, b Num)Num { return a*b })
-    Div = Operator("/", pdiv)
-    Neg = UnaryFunc("-", func(a Num)Num { return -a })
+    Add = NumOp("+", func(a ...Num)Num { return a[0] + a[1] })
+    Sub = NumOp("-", func(a ...Num)Num { return a[0] - a[1] })
+    Mul = NumOp("*", func(a ...Num)Num { return a[0] * a[1] })
+    Div = NumOp("/", pdiv)
+    Neg = NumFunc("-", 1, func(a ...Num)Num { return -a[0] })
 )
+
+func pdiv(a ...Num) Num {
+	if a[1] > -DIVIDE_PROTECT && a[1] < DIVIDE_PROTECT { return 0 }
+    return Num(a[0] / a[1])
+}
 
 // Num is a floating point value which implements the gp.Opcode interface
 type Num float64
 
+// Arity method returns the number of arguments for the opcode
 func (n Num) Arity() int { return 0 }
 
+// Eval method for a numeric operator returns the numeric value
 func (n Num) Eval(args ...gp.Value) gp.Value { return n }
 
+// String method returns the name of the opcode
 func (n Num) String() string { return fmt.Sprint(float64(n)) }
 
+// Format method is called by Expr Format() to return a expression in a human readable format
 func (n Num) Format(args ...string) string { return n.String() }
 
-// Term is a numeric function with no arguments
-type Term struct{
+type numFunc struct{
     gp.Opcode
-    fun func() Num
+    fun func(...Num) Num
 }
 
-func Terminal(name string, fun func()Num) Term {
-    return Term{ gp.Terminal(name), fun }
+// NumFunc constructor returns a numeric function with given arity 
+// which implements the gp.Opcode interface
+func NumFunc(name string, arity int, fun func(...Num)Num) gp.Opcode {
+    return numFunc{ gp.Function(name,arity), fun }
 }
 
-func (o Term) Eval(args ...gp.Value) gp.Value { 
-    return o.fun()
+// NumOp constructor returns a numeric binary operator which implements the gp.Opcode interface
+func NumOp(name string, fun func(...Num)Num) gp.Opcode {
+    return numFunc{ gp.Operator(name), fun }
 }
 
-// Unary is a numeric function with one argument
-type Unary struct{
-    gp.Opcode
-    fun func(a Num) Num
+func (o numFunc) Eval(iargs ...gp.Value) gp.Value {
+    args := make([]Num, len(iargs))
+    for i, iarg := range iargs {
+        args[i] = iarg.(Num)
+    }
+    return o.fun(args...)
 }
 
-func UnaryFunc(name string, fun func(a Num)Num) Unary {
-    return Unary{ gp.Function(name,1), fun }
-}
 
-func (o Unary) Eval(args ...gp.Value) gp.Value { 
-    return o.fun(args[0].(Num))
-}
 
-// BinOp is a numeric operator with two arguments
-type BinOp struct{
-    gp.Opcode
-    fun func(a, b Num) Num
-}
-
-func Operator(name string, fun func(a, b Num)Num) BinOp {
-    return BinOp{ gp.Operator(name), fun }
-}
-
-func (o BinOp) Eval(args ...gp.Value) gp.Value { 
-    return o.fun(args[0].(Num), args[1].(Num))
-}
-
-func pdiv(a, b Num) Num {
-	if b > -DIVIDE_PROTECT && b < DIVIDE_PROTECT { return 0 }
-    return Num(a / b)
-}
 

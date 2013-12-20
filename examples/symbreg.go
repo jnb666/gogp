@@ -28,7 +28,7 @@ func TargetFunc(x float64) float64 {
 }
 
 // terminal function to generate random integer in range -1:+1
-var ercgen = Terminal("rnd", func()Num { return Num(rand.Intn(3)-1) })
+var ercgen = NumFunc("rnd", 0, func(...Num)Num { return Num(rand.Intn(3)-1) })
 //var ercgen = Terminal("rnd", func()Num { return Num(rand.Intn(11)-5) })
 
 // implement the evaluator interface to get fitness

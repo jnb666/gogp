@@ -58,17 +58,21 @@ func Variable(name string, narg int) Opcode {
 }
 
 // Ephemeral constructor. An Ephemeral holds a "constant" value which is generated when
-// the Init method is called on the provided Opcode. 
+// the Init method is called on the provided Opcode. Prior to this the value is nil.
 func Ephemeral(name string, op Opcode) Opcode {
     return ephemeral{ &baseFunc{name,0}, op, nil }
 }
 
+// Arity method returns the number of arguments for the opcode
 func (f *baseFunc) Arity() int { return f.arity }
 
+// String method returns the name of the opcode
 func (f *baseFunc) String() string { return f.name }
 
+// Eval abstract base method - must be overridden
 func (f *baseFunc) Eval(args ...Value) Value { panic("abstract method!") }
 
+// Format method is called by Expr.Format to return a expression in a human readable format
 func (f *baseFunc) Format(args ...string) string {
     return f.name + "(" + strings.Join(args, ", ") + ")"
 }
@@ -84,8 +88,10 @@ type variable struct {
     Narg int
 }
 
+// Eval method for variable returns the associated input value
 func (v variable) Eval(input ...Value) Value { return input[v.Narg] }
 
+// Format method is called by Expr.Format to return a expression in a human readable format
 func (v variable) Format(args ...string) string { return v.name }
 
 type ephemeral struct {
@@ -94,12 +100,15 @@ type ephemeral struct {
     val Value
 }
 
+// Eval method for ephemeral returns the value which was generated when Init was called
 func (o ephemeral) Eval(args ...Value) Value { return o.val }
 
+// Init method for ephemeral returns a new ephemeral constant with the value set
 func (o ephemeral) Init() ephemeral{
     return ephemeral{ o.baseFunc, o.op, o.op.Eval() }
 }
 
+// Format method is called by Expr.Format to return a expression in a human readable format
 func (o ephemeral) Format(args ...string) string {
     return fmt.Sprint(o.val)
 }

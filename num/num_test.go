@@ -6,13 +6,13 @@ import (
     "github.com/jnb666/gogp/gp"
 )
 
-var Rand = Terminal("rand", func()Num { return Num(rand.Float64()) })
+var Rand = NumFunc("rand", 0, func(a ...Num)Num { return Num(rand.Float64()) })
 
-var RandDigit = Terminal("rdigit", func()Num { return Num(rand.Intn(10)) })
+var RandDigit = NumFunc("rdigit", 0, func(a ...Num)Num { return Num(rand.Intn(10)) })
 
-var Sqr = UnaryFunc("sqr", func(a Num)Num { return a*a })
+var Sqr = NumFunc("sqr", 1, func(a ...Num)Num { return a[0]*a[0] })
 
-var Floor = UnaryFunc("floor", func(a Num)Num { return Num(math.Floor(float64(a))) })
+var Floor = NumFunc("floor", 1, func(a ...Num)Num { return Num(math.Floor(float64(a[0]))) })
 
 // setup primitive set
 func initPset(all bool) *gp.PrimSet {
