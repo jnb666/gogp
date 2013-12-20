@@ -1,4 +1,4 @@
-// floating point numeric types
+// Package num provides a floating point numeric type and associated operations.
 package num
 import (
     "fmt"
@@ -7,7 +7,15 @@ import (
 
 const DIVIDE_PROTECT = 1e-10
 
-// floating point value type which implements Opcode interface
+var (
+    Add = Operator("+", func(a, b Num)Num { return a+b })
+    Sub = Operator("-", func(a, b Num)Num { return a-b })
+    Mul = Operator("*", func(a, b Num)Num { return a*b })
+    Div = Operator("/", pdiv)
+    Neg = UnaryFunc("-", func(a Num)Num { return -a })
+)
+
+// Num is a floating point value which implements the gp.Opcode interface
 type Num float64
 
 func (n Num) Arity() int { return 0 }
@@ -18,9 +26,9 @@ func (n Num) String() string { return fmt.Sprint(float64(n)) }
 
 func (n Num) Format(args ...string) string { return n.String() }
 
-// terminal functions
+// Term is a numeric function with no arguments
 type Term struct{
-    gp.Term
+    gp.Opcode
     fun func() Num
 }
 
@@ -32,9 +40,9 @@ func (o Term) Eval(args ...gp.Value) gp.Value {
     return o.fun()
 }
 
-// unary functions
+// Unary is a numeric function with one argument
 type Unary struct{
-    gp.Func
+    gp.Opcode
     fun func(a Num) Num
 }
 
@@ -46,11 +54,9 @@ func (o Unary) Eval(args ...gp.Value) gp.Value {
     return o.fun(args[0].(Num))
 }
 
-var Neg = UnaryFunc("-", func(a Num)Num { return -a })
-
-// binary operators
+// BinOp is a numeric operator with two arguments
 type BinOp struct{
-    gp.BinOp
+    gp.Opcode
     fun func(a, b Num) Num
 }
 
@@ -62,12 +68,6 @@ func (o BinOp) Eval(args ...gp.Value) gp.Value {
     return o.fun(args[0].(Num), args[1].(Num))
 }
 
-var Add = Operator("+", func(a, b Num)Num { return a+b })
-var Sub = Operator("-", func(a, b Num)Num { return a-b })
-var Mul = Operator("*", func(a, b Num)Num { return a*b })
-var Div = Operator("/", pdiv)
-
-// protected division
 func pdiv(a, b Num) Num {
 	if b > -DIVIDE_PROTECT && b < DIVIDE_PROTECT { return 0 }
     return Num(a / b)

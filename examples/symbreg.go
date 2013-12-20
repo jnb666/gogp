@@ -60,16 +60,16 @@ func main() {
 	runtime.GOMAXPROCS(args.Threads)
     pset := primSet()
     eval := EvalFitness{ pset }
-    tournament := gp.Tournament{ args.TournamentSize }
-    generate := gp.GenRamped(pset, 1, 3)
-    mutate := gp.MutUniform(gp.GenRamped(pset, 0, 2))
+    tournament := gp.Tournament(args.TournamentSize)
+    generate := gp.GenRamped(1,3)
+    mutate := gp.MutUniform(gp.GenRamped(0,2), pset)
     crossover := gp.CxOnePoint()
     if args.DepthLimit > 0 {
-        limit := gp.DepthLimit { args.DepthLimit }
+        limit := gp.DepthLimit(args.DepthLimit)
         mutate.AddDecorator(limit)
         crossover.AddDecorator(limit)
     }
-    pop, stats := gp.CreatePopulation(args, generate, eval)
+    pop, stats := gp.CreatePopulation(args, generate, pset, eval)
     stats.Print(0)
 	if profile != "" {
 		if file, err := os.Create(profile); err == nil {

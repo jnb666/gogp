@@ -1,28 +1,29 @@
-// stats info for the current generation
 package gp
 import (
     "fmt"
     "math"
 )
 
+// Columns for statistics logging 
+var LogColumns = []string{"gen", "evals", "fitMax", "fitAvg", "fitStd",
+                     "sizeAvg", "sizeMax", "depthAvg", "depthMax"}
+
+// Stats structure holds the statistics for the give Population. 
 type Stats struct {
     Evals   int
-    Fitness statsData
-    Size    statsData
-    Depth   statsData
+    Fitness StatsData
+    Size    StatsData
+    Depth   StatsData
     Best    Individual
     NewBest bool
 }
 
-type statsData struct {
+type StatsData struct {
     Min, Max, Avg, Std float64
     Imin, Imax int
 }
 
-var LogColumns = []string{"gen", "evals", "fitMax", "fitAvg", "fitStd",
-                     "sizeAvg", "sizeMax", "depthAvg", "depthMax"}
-
-// get stats for this generation
+// GetStats calculates stats on fitness, size and depth for the given population
 func GetStats(pop Population, evals int, prev *Stats) *Stats {
     s := &Stats{ Evals:evals }
     updateStats(pop, &s.Fitness, func(ind *Individual)float64 { return ind.Fitness })
@@ -34,7 +35,7 @@ func GetStats(pop Population, evals int, prev *Stats) *Stats {
 }
 
 // update stats data
-func updateStats(pop Population, d *statsData, getval func(*Individual)float64) {
+func updateStats(pop Population, d *StatsData, getval func(*Individual)float64) {
     psize := float64(len(pop))
     d.Min, d.Max = 1e99, -1e99
     for i, ind := range pop {
@@ -50,7 +51,7 @@ func updateStats(pop Population, d *statsData, getval func(*Individual)float64) 
     d.Std = math.Sqrt(d.Std)
 }
 
-// print current stats
+// The Print method formats and prints the stats to stdout
 func (s *Stats) Print(gen int) {
     if gen == 0 {
         for _, col := range LogColumns {

@@ -1,11 +1,13 @@
-// interface to evaluate fitness of individual
 package gp
 import "fmt"
 
+// An Evaluator is provided by the implementation to calculate the fitness of an individual.
 type Evaluator interface {
     GetFitness(code Expr) (fit float64, ok bool)
 }
 
+// An Individual represents a single "organism" which has a program and stores the fitness if it 
+// has been evaluated yet. 
 type Individual struct {
     Code  Expr
     Fitness  float64
@@ -15,7 +17,8 @@ type Individual struct {
 
 type empty struct{}
 
-// work out fitness for each individual, split work into threads parallel goroutines
+// Evaluate calls the eval Evaluator to calculate the fitness for each individual.
+// Work can be split into threads parallel goroutines.
 func (pop Population) Evaluate(eval Evaluator, threads int) int {
     todo := make([]int, 0, len(pop))
     for i, ind := range pop {
@@ -32,8 +35,12 @@ func (pop Population) Evaluate(eval Evaluator, threads int) int {
         // last chunk takes any extras
         if chunk == threads-1 { end = evals }
         // kick off goroutine to do the work
-        //fmt.Println("doEval:", start, end)
-        go doEval(pop, eval, todo[start:end], sem)
+        go func(indices []int, sem chan empty) {
+            for _, i := range indices {
+                 pop[i].Fitness, pop[i].FitnessValid = eval.GetFitness(pop[i].Code)
+            }
+            sem <- empty{}
+        } (todo[start:end], sem)
         start += chunkSize
         end += chunkSize
     }
@@ -42,18 +49,12 @@ func (pop Population) Evaluate(eval Evaluator, threads int) int {
     return evals
 }
 
-func doEval(pop Population, eval Evaluator, todo []int, sem chan empty) {
-    for _, i := range todo {
-         pop[i].Fitness, pop[i].FitnessValid = eval.GetFitness(pop[i].Code)
-    }
-    sem <- empty{};
-}
-
-// individual methods
+// NewIndiv constructor, to create a new individual with copy of given code tree.
 func NewIndiv(code Expr) *Individual {
     return &Individual{ Code:code.Clone() }
 }
 
+// Clone returns a copy of the given individual.
 func (ind *Individual) Clone() *Individual {
     return &Individual{
         Code: ind.Code.Clone(),
@@ -62,6 +63,7 @@ func (ind *Individual) Clone() *Individual {
     }
 }
 
+// String returns a textual representation of the individual, e.g. for debug printing.
 func (ind Individual) String() string {
     if ind.FitnessValid {
         return fmt.Sprintf("%6.3f  %s", ind.Fitness, ind.Code.Format())
@@ -70,10 +72,12 @@ func (ind Individual) String() string {
     }
 }
 
+// Size returns the length of the code for the individual.
 func (ind *Individual) Size() int {
     return len(ind.Code)
 }
 
+// Depth returns the depth of the code tree for the individual.
 func (ind *Individual) Depth() int {
     if len(ind.Code) == 0 {
         return 0
@@ -84,6 +88,7 @@ func (ind *Individual) Depth() int {
     return ind.depth
 }
 
+// Equals compares two individuals to see if they have the same code value.
 func Equals(ind1, ind2 *Individual) bool {
     return ind1.Code.Format() == ind2.Code.Format()
 }
