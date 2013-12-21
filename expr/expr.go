@@ -2,7 +2,6 @@
 package expr
 import (
     "strings"
-    "fmt"
     "math/rand"
 )
 
@@ -90,32 +89,7 @@ func (v variable) Format(args ...string) string { return v.name }
 // individual.
 type EphemeralConstant interface {
     Opcode
-    Init() Opcode
-}
-
-type ephemeral struct {
-    *baseFunc
-    gen Opcode
-    val Value
-}
-
-// Ephemeral constructor. An Ephemeral holds a "constant" value which is generated when
-// the Init method is called on the provided Opcode. Prior to this the value is nil.
-func Ephemeral(name string, gen Opcode) EphemeralConstant {
-    return ephemeral{ &baseFunc{name,0}, gen, nil }
-}
-
-// Eval method for ephemeral returns the value which was generated when Init was called
-func (o ephemeral) Eval(args ...Value) Value { return o.val }
-
-// Init method for ephemeral returns a new ephemeral constant with the value set
-func (o ephemeral) Init() Opcode {
-    return ephemeral{ o.baseFunc, o.gen, o.gen.Eval() }
-}
-
-// Format method is called by Expr.Format to return a expression in a human readable format
-func (o ephemeral) Format(args ...string) string {
-    return fmt.Sprint(o.val)
+    Init() EphemeralConstant
 }
 
 // Clone makes a copy of an expression.

@@ -7,13 +7,11 @@ import (
     "github.com/jnb666/gogp/gp"
 )
 
-var Rand = Func("rand", 0, func(a []V)V { return V(rand.Float64()) })
-
-var RandDigit = Func("rdigit", 0, func(a []V)V { return V(rand.Intn(10)) })
-
-var Sqr = Func("sqr", 1, func(a []V)V { return a[0]*a[0] })
-
-var Floor = Func("floor", 1, func(a []V)V { return V(math.Floor(float64(a[0]))) })
+var (
+    Rand = Term("rand", func()V { return V(rand.Float64()) })
+    Sqr  = Unary("sqr", func(a V)V { return a*a })
+    Floor= Unary("floor", func(a V)V { return V(math.Floor(float64(a))) })
+)
 
 // setup primitive set
 func initPset(all bool) *gp.PrimSet {
@@ -89,17 +87,16 @@ func TestGenerate(t *testing.T) {
 // test ephemeral random constants
 func TestEphemeral(t *testing.T) {
     pset := initPset(false)
-    erc := expr.Ephemeral("ERC", RandDigit)
+    erc := Ephemeral("ERC", func()V { return V(rand.Intn(10)) })
     pset.Add(erc, erc, erc)
     gen := gp.GenFull(1, 3)
     gp.SetSeed(2)
     ind := gen.Generate(pset)
-    t.Log(ind)
+    t.Log(ind.Code, ind.Code.Format())
     val := ind.Code.Eval([]expr.Value{V(6), V(7)})
-    t.Log("evals to", val, "for x=6 y=y")
+    t.Log("evals to", val, "for x=6 y=7")
     if val != V(16) { t.Errorf("Eval(%s) = %f", ind.Code, val) }
 }
-
 
 // test mutation
 type genProxy struct { expr expr.Expr }

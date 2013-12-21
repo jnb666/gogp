@@ -8,19 +8,19 @@ import (
 const DIVIDE_PROTECT = 1e-10
 
 var (
-    Add = Op("+", func(a []V)V { return a[0] + a[1] })
-    Sub = Op("-", func(a []V)V { return a[0] - a[1] })
-    Mul = Op("*", func(a []V)V { return a[0] * a[1] })
+    Add = Op("+", func(a, b V)V { return a + b })
+    Sub = Op("-", func(a, b V)V { return a - b })
+    Mul = Op("*", func(a, b V)V { return a * b })
     Div = Op("/", protected_divide)
-    Neg = Func("-", 1, func(a []V)V { return -a[0] })
+    Neg = Unary("-", func(a V)V { return -a })
 )
 
-func protected_divide(a []V) V {
-	if a[1] > -DIVIDE_PROTECT && a[1] < DIVIDE_PROTECT { return 0 }
-    return V(a[0] / a[1])
+func protected_divide(a, b V) V {
+	if b > -DIVIDE_PROTECT && b < DIVIDE_PROTECT { return 0 }
+    return V(a / b)
 }
 
-// V is a floating point value which implements the gp.Opcode interface
+// V is a floating point value which implements the expr.Opcode interface
 type V float64
 
 // Arity method returns the number of arguments for the opcode
@@ -33,11 +33,25 @@ func (n V) Eval(args ...expr.Value) expr.Value { return n }
 func (n V) String() string { return fmt.Sprint(float64(n)) }
 
 // Format method is called by Expr Format() to return a expression in a human readable format
-func (n V) Format(args ...string) string { return n.String() }
+func (n V) Format(args ...string) string { return fmt.Sprint(float64(n)) }
 
-type numFunc struct{
-    expr.Opcode
-    fun func([]V) V
+// Ephemeral constructor to create a numeric EphemeralConstant
+func Ephemeral(name string, gen func() V) expr.EphemeralConstant {
+    return erc{ gen:gen, name:name }
+}
+
+type erc struct {
+    V
+    gen func() V
+    name string
+}
+
+func (e erc) Init() expr.EphemeralConstant {
+    return erc{ e.gen(), e.gen, e.name }
+}
+
+func (e erc) String() string {
+    return e.name
 }
 
 // Func constructor returns a numeric function with given arity 
@@ -46,9 +60,9 @@ func Func(name string, arity int, fun func([]V)V) expr.Opcode {
     return numFunc{ expr.Function(name,arity), fun }
 }
 
-// Op constructor returns a numeric binary operator which implements the gp.Opcode interface
-func Op(name string, fun func([]V)V) expr.Opcode {
-    return numFunc{ expr.Operator(name), fun }
+type numFunc struct{
+    expr.Opcode
+    fun func([]V) V
 }
 
 func (o numFunc) Eval(iargs ...expr.Value) expr.Value {
@@ -57,5 +71,47 @@ func (o numFunc) Eval(iargs ...expr.Value) expr.Value {
         args[i] = iarg.(V)
     }
     return o.fun(args)
+}
+
+// Term constructor returns a numeric terminal operator which implements the expr.Opcode interface
+func Term(name string, fun func() V) expr.Opcode {
+    return termOp{ expr.Function(name,0), fun }
+}
+
+type termOp struct{
+    expr.Opcode
+    fun func() V
+}
+
+func (o termOp) Eval(args ...expr.Value) expr.Value {
+    return o.fun()
+}
+
+// Unary constructor returns a numeric unary operator which implements the expr.Opcode interface
+func Unary(name string, fun func(a V) V) expr.Opcode {
+    return unaryOp{ expr.Function(name,1), fun }
+}
+
+type unaryOp struct{
+    expr.Opcode
+    fun func(a V) V
+}
+
+func (o unaryOp) Eval(args ...expr.Value) expr.Value {
+    return o.fun(args[0].(V))
+}
+
+// Op constructor returns a numeric binary operator which implements the expr.Opcode interface
+func Op(name string, fun func(a, b V)V) expr.Opcode {
+    return numOp{ expr.Operator(name), fun }
+}
+
+type numOp struct{
+    expr.Opcode
+    fun func(a, b V) V
+}
+
+func (o numOp) Eval(args ...expr.Value) expr.Value {
+    return o.fun(args[0].(V), args[1].(V))
 }
 
