@@ -25,7 +25,8 @@ type empty struct{}
 
 // Evaluate calls the eval Evaluator to calculate the fitness for each individual.
 // Work can be split into threads parallel goroutines.
-func (pop Population) Evaluate(eval Evaluator, threads int) int {
+// Returns the new population and the number of individuals which were evaluated.
+func (pop Population) Evaluate(eval Evaluator, threads int) (Population, int) {
     todo := make([]int, 0, len(pop))
     for i, ind := range pop {
         if !ind.FitnessValid { todo = append(todo, i) }
@@ -52,7 +53,7 @@ func (pop Population) Evaluate(eval Evaluator, threads int) int {
     }
     // wait for goroutines to finish
     for chunk := 0; chunk < threads; chunk++ { <-sem }
-    return evals
+    return pop, evals
 }
 
 // Create constructor produces a new individual with copy of given code tree.

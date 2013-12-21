@@ -21,15 +21,54 @@ type Opcode interface {
     Format(...string) string
 }
 
+// An EphemeralConstant is a subtype of Opcode. It is typically used to hold a random 
+// constant value which is set at when an individual is generated. Implementations of the
+// gp.Generator interface should call Init() to get the constant on creation of a new
+// individual.
+type EphemeralConstant interface {
+    Opcode
+    Init() EphemeralConstant
+}
+
 // The Expr type is defined a slice of Opcodes. An expression is stored internally as a list in prefix
 // notation to represent the opcode tree. Methods are provided to evaluate an expression given specified
 // terminal nodes.
 type Expr []Opcode
 
+// base function type
 type baseFunc struct {
     name  string
     arity int
 }
+
+func (f *baseFunc) Arity() int { return f.arity }
+
+func (f *baseFunc) String() string { return f.name }
+
+func (f *baseFunc) Eval(args ...Value) Value { panic("abstract method!") }
+
+func (f *baseFunc) Format(args ...string) string {
+    if len(args) > 0 {
+        return f.name + "(" + strings.Join(args, ", ") + ")"
+    } else {
+        return f.name
+    }
+}
+
+// binary operator type 
+type binOp struct { *baseFunc }
+
+func (b binOp) Format(args ...string) string {
+    return "(" + args[0] + " " + b.name + " " + args[1] + ")"
+}
+
+// variable type
+type variable struct {
+    *baseFunc
+    Narg int
+}
+
+func (v variable) Eval(input ...Value) Value { return input[v.Narg] }
 
 // Terminal constructor. Returns an Opcode representing a function which does not take any arguments.
 func Terminal(name string) Opcode {
@@ -50,46 +89,6 @@ func Operator(name string) Opcode {
 // Variable constructor. Returns an opcode representing input variable number narg.
 func Variable(name string, narg int) Opcode {
     return variable{ &baseFunc{name,0}, narg }
-}
-
-// Arity method returns the number of arguments for the opcode
-func (f *baseFunc) Arity() int { return f.arity }
-
-// String method returns the name of the opcode
-func (f *baseFunc) String() string { return f.name }
-
-// Eval abstract base method - must be overridden
-func (f *baseFunc) Eval(args ...Value) Value { panic("abstract method!") }
-
-// Format method is called by Expr.Format to return a expression in a human readable format
-func (f *baseFunc) Format(args ...string) string {
-    return f.name + "(" + strings.Join(args, ", ") + ")"
-}
-
-type binOp struct { *baseFunc }
-
-func (b binOp) Format(args ...string) string {
-    return "(" + args[0] + " " + b.name + " " + args[1] + ")"
-}
-
-type variable struct {
-    *baseFunc
-    Narg int
-}
-
-// Eval method for variable returns the associated input value
-func (v variable) Eval(input ...Value) Value { return input[v.Narg] }
-
-// Format method is called by Expr.Format to return a expression in a human readable format
-func (v variable) Format(args ...string) string { return v.name }
-
-// An EphemeralConstant is a subtype of Opcode. It is typically used to hold a random 
-// constant value which is set at when an individual is generated. Implementations of the
-// gp.Generator interface should call Init() to get the constant on creation of a new
-// individual.
-type EphemeralConstant interface {
-    Opcode
-    Init() EphemeralConstant
 }
 
 // Clone makes a copy of an expression.

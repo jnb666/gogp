@@ -14,15 +14,15 @@ var (
 )
 
 // setup primitive set
-func initPset(all bool) *gp.PrimSet {
-    pset := gp.CreatePrimSet("x", "y")
+func initPset(all bool) *expr.PrimSet {
+    pset := expr.CreatePrimSet(2, "x", "y")
     pset.Add( Add, Sub, Mul, Div, Neg)
     if all { pset.Add(V(42), Sqr, Rand, Floor) }
     return pset
 }
 
 // test expressions
-func testExprs(pset *gp.PrimSet) []expr.Expr {
+func testExprs(pset *expr.PrimSet) []expr.Expr {
     x, y := pset.Var(0), pset.Var(1)
     exprs := []expr.Expr{
         expr.Expr{ Add, V(9), V(4) },
@@ -101,7 +101,7 @@ func TestEphemeral(t *testing.T) {
 // test mutation
 type genProxy struct { expr expr.Expr }
 
-func (g genProxy) Generate(pset *gp.PrimSet) *gp.Individual {
+func (g genProxy) Generate(pset *expr.PrimSet) *gp.Individual {
     return &gp.Individual{Code: g.expr}
 }
 
