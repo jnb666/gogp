@@ -28,8 +28,8 @@ func Example_gp() {
     pset.Add(Add, Sub, Mul, Div, Neg, V(0), V(1))
     eval := EvalFitness{ pset }
     pop, evals := gp.CreatePopulation(500, gp.GenFull(1,3), pset).Evaluate(eval, 1)
-    stats := gp.GetStats(pop, 0, evals)
-    fmt.Printf("gen=%d evals=%d fit=%.4f\n", 0, evals, stats.Fitness.Max)
+    best := pop.Best()
+    fmt.Printf("gen=%d evals=%d fit=%.4f\n", 0, evals, best.Fitness)
 
     // setup genetic variations
     tourn  := gp.Tournament(3)
@@ -37,12 +37,13 @@ func Example_gp() {
     cxover := gp.CxOnePoint()
 
     // loop till reach target fitness or exceed no. of generations   
-    for gen := 1; gen <= 40 && stats.Fitness.Max < 1; gen++ {
-        pop, evals = gp.VarAnd(tourn.Select(pop, len(pop)), cxover, mutate, 0.5, 0.2).Evaluate(eval, 1)
-        stats = gp.GetStats(pop, gen, evals)
-        fmt.Printf("gen=%d evals=%d fit=%.4f\n", gen, evals, stats.Fitness.Max)
+    for gen := 1; gen <= 40 && best.Fitness < 1; gen++ {
+        offspring := tourn.Select(pop, len(pop))
+        pop, evals = gp.VarAnd(offspring, cxover, mutate, 0.5, 0.2).Evaluate(eval, 1)
+        best = pop.Best()
+        fmt.Printf("gen=%d evals=%d fit=%.4f\n", gen, evals, best.Fitness)
     }
-    fmt.Println(pop.Best())
+    fmt.Println(best)
     /* Output:
 set random seed: 1
 gen=0 evals=500 fit=0.1203
