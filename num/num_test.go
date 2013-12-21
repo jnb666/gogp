@@ -3,34 +3,35 @@ import (
 	"testing"
     "math/rand"
     "math"
+    "github.com/jnb666/gogp/expr"
     "github.com/jnb666/gogp/gp"
 )
 
-var Rand = NumFunc("rand", 0, func(a ...Num)Num { return Num(rand.Float64()) })
+var Rand = Func("rand", 0, func(a []V)V { return V(rand.Float64()) })
 
-var RandDigit = NumFunc("rdigit", 0, func(a ...Num)Num { return Num(rand.Intn(10)) })
+var RandDigit = Func("rdigit", 0, func(a []V)V { return V(rand.Intn(10)) })
 
-var Sqr = NumFunc("sqr", 1, func(a ...Num)Num { return a[0]*a[0] })
+var Sqr = Func("sqr", 1, func(a []V)V { return a[0]*a[0] })
 
-var Floor = NumFunc("floor", 1, func(a ...Num)Num { return Num(math.Floor(float64(a[0]))) })
+var Floor = Func("floor", 1, func(a []V)V { return V(math.Floor(float64(a[0]))) })
 
 // setup primitive set
 func initPset(all bool) *gp.PrimSet {
-    pset := gp.CreatePrimitiveSet("x", "y")
+    pset := gp.CreatePrimSet("x", "y")
     pset.Add( Add, Sub, Mul, Div, Neg)
-    if all { pset.Add(Num(42), Sqr, Rand, Floor) }
+    if all { pset.Add(V(42), Sqr, Rand, Floor) }
     return pset
 }
 
 // test expressions
-func testExprs(pset *gp.PrimSet) []gp.Expr {
+func testExprs(pset *gp.PrimSet) []expr.Expr {
     x, y := pset.Var(0), pset.Var(1)
-    exprs := []gp.Expr{
-        gp.Expr{ Add, Num(9), Num(4) },
-        gp.Expr{ Add, Sqr, x, Sqr, y },
-        gp.Expr{ Div, Mul, Add, Num(3), Num(4), Sub, Num(9), Num(6), Num(2) },
-        gp.Expr{ Div, Add, Num(1), Neg, Num(1), Num(0) },
-        gp.Expr{ Floor, Mul, Num(10), Rand },
+    exprs := []expr.Expr{
+        expr.Expr{ Add, V(9), V(4) },
+        expr.Expr{ Add, Sqr, x, Sqr, y },
+        expr.Expr{ Div, Mul, Add, V(3), V(4), Sub, V(9), V(6), V(2) },
+        expr.Expr{ Div, Add, V(1), Neg, V(1), V(0) },
+        expr.Expr{ Floor, Mul, V(10), Rand },
     }
     return exprs
 }
@@ -51,7 +52,7 @@ func TestClone(t *testing.T) {
 func TestDepth(t *testing.T) {
     pset := initPset(true)
     exprs := testExprs(pset)
-    ind := gp.NewIndiv(exprs[2])
+    ind := gp.Create(exprs[2])
     depth, size := ind.Depth(), ind.Size()
     t.Logf("%s depth=%d size=%d\n", ind, depth, size)
     if depth!=3 || size!=9 {
@@ -63,10 +64,10 @@ func TestDepth(t *testing.T) {
 func TestEval(t *testing.T) {
     pset := initPset(true)
     exprs := testExprs(pset)
-    expect := []Num{13, 25, 10.5, 0, 6}
+    expect := []V{13, 25, 10.5, 0, 6}
     rand.Seed(1)
     for i, expect := range expect {
-        val := exprs[i].Eval([]gp.Value{Num(3), Num(4)})
+        val := exprs[i].Eval([]expr.Value{V(3), V(4)})
         t.Log(exprs[i], "(3,4) ", exprs[i].Format(), " => ", val)
     	if val != expect { t.Errorf("Eval(%s) = %f", exprs[i], val) }
     }
@@ -75,12 +76,12 @@ func TestEval(t *testing.T) {
 // test generating random individuals
 func TestGenerate(t *testing.T) {
     pset := initPset(false)
-    pset.Add(Num(0), Num(1))
+    pset.Add(V(0), V(1))
     gen := gp.GenRamped(1, 3)
     gp.SetSeed(0)
     for i:=0; i<10; i++ {
         ind := gen.Generate(pset)
-        res := ind.Code.Eval([]gp.Value{Num(6), Num(7)})
+        res := ind.Code.Eval([]expr.Value{V(6), V(7)})
         t.Log(ind.Code, ind.Code.Format(), "(6,7) =>", res)
     }
 }
@@ -88,20 +89,20 @@ func TestGenerate(t *testing.T) {
 // test ephemeral random constants
 func TestEphemeral(t *testing.T) {
     pset := initPset(false)
-    erc := gp.Ephemeral("ERC", RandDigit)
+    erc := expr.Ephemeral("ERC", RandDigit)
     pset.Add(erc, erc, erc)
     gen := gp.GenFull(1, 3)
     gp.SetSeed(2)
     ind := gen.Generate(pset)
     t.Log(ind)
-    val := ind.Code.Eval([]gp.Value{Num(6), Num(7)})
+    val := ind.Code.Eval([]expr.Value{V(6), V(7)})
     t.Log("evals to", val, "for x=6 y=y")
-    if val != Num(16) { t.Errorf("Eval(%s) = %f", ind.Code, val) }
+    if val != V(16) { t.Errorf("Eval(%s) = %f", ind.Code, val) }
 }
 
 
 // test mutation
-type genProxy struct { expr gp.Expr }
+type genProxy struct { expr expr.Expr }
 
 func (g genProxy) Generate(pset *gp.PrimSet) *gp.Individual {
     return &gp.Individual{Code: g.expr}
@@ -146,7 +147,7 @@ func TestCrossover(t *testing.T) {
     pset := initPset(true)
     exprs := testExprs(pset)
     breed := gp.CxOnePoint()
-    parent := gp.Population{ gp.NewIndiv(exprs[1]), gp.NewIndiv(exprs[2]) }
+    parent := gp.Population{ gp.Create(exprs[1]), gp.Create(exprs[2]) }
     t.Log("Before:\n", parent[0], "\n", parent[1])
     for i:=0; i<5; i++ {
         child := breed.Variate(parent)

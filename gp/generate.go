@@ -4,7 +4,52 @@ import (
 	"math/big"
 	crand "crypto/rand"
     "fmt"
+    "github.com/jnb666/gogp/expr"
 )
+
+// A PrimSet represents the set of all of primitive opcodes for a given run. 
+type PrimSet struct {
+    terminals  []expr.Opcode
+    primitives []expr.Opcode
+}
+
+
+// CreatePrimitiveSet constructor takes a list of variable names.
+func CreatePrimSet(vars ...string) *PrimSet {
+    pset := &PrimSet{}
+    pset.primitives = []expr.Opcode{}
+    pset.terminals = make([]expr.Opcode, len(vars))
+    for i, name := range vars {
+        pset.terminals[i] = expr.Variable(name, i)
+    }
+    return pset
+}
+
+// Add method adds a new Opcode to the primitive set.
+func (pset *PrimSet) Add(ops ...expr.Opcode) {
+    for _, op := range ops {
+        if op.Arity() > 0 {
+            pset.primitives = append(pset.primitives, op)
+        } else {
+            pset.terminals = append(pset.terminals, op)
+        }
+    }
+}
+
+// Var returns the nth variable in the primitive set.
+func (pset *PrimSet) Var(n int) expr.Opcode {
+    return pset.terminals[n]
+}
+
+// Terminals returns the list of terminal arity 0 opcodes. 
+func (pset *PrimSet) Terminals() []expr.Opcode {
+    return pset.terminals
+}
+
+// Primitives returns the list of non-terminal opcodes (arity > 0).
+func (pset *PrimSet) Primitives() []expr.Opcode { 
+    return pset.primitives
+}
 
 // A Population is a slice of individuals. Implementations of the Selection interface are 
 // provided to pick a subset from the population, and of the Variation interface to provide mutation
@@ -92,7 +137,7 @@ func (g genRamped) Generate(pset *PrimSet) *Individual {
 
 // core logic which implements the different generator types
 func (g genBase) Generate(pset *PrimSet) *Individual {
-    code := Expr{}
+    code := expr.Expr{}
     height := rand.Intn(1+g.max-g.min) + g.min
     stack := []int{0}
     depth := 0
@@ -100,9 +145,8 @@ func (g genBase) Generate(pset *PrimSet) *Individual {
         depth, stack = stack[len(stack)-1], stack[:len(stack)-1]
         if g.condition(height, depth, pset) {
             op := randomOp(pset.Terminals())
-            if eph,ok := op.(ephemeral); ok {
-                // initialise ephemeral constant
-                op = eph.Init()
+            if erc,ok := op.(expr.EphemeralConstant); ok {
+                op = erc.Init()
             }
             code = append(code, op)
         } else {
@@ -128,7 +172,7 @@ func SetSeed(seed int64) int64 {
     return seed
 }
 
-func randomOp(list []Opcode) Opcode {
+func randomOp(list []expr.Opcode) expr.Opcode {
     return list[rand.Intn(len(list))]
 }
 

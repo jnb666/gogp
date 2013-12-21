@@ -1,7 +1,9 @@
-package gp
+// The expr package contains code for parsing the expression trees used in gogp.
+package expr
 import (
     "strings"
     "fmt"
+    "math/rand"
 )
 
 // The Value type is defined as an empty interface hence any type can be used for a specific model.
@@ -24,12 +26,6 @@ type Opcode interface {
 // notation to represent the opcode tree. Methods are provided to evaluate an expression given specified
 // terminal nodes.
 type Expr []Opcode
-
-// A PrimSet represents the set of all of primitive Opcodes for a given run. 
-type PrimSet struct {
-    terminals  []Opcode
-    primitives []Opcode
-}
 
 type baseFunc struct {
     name  string
@@ -55,12 +51,6 @@ func Operator(name string) Opcode {
 // Variable constructor. Returns an opcode representing input variable number narg.
 func Variable(name string, narg int) Opcode {
     return variable{ &baseFunc{name,0}, narg }
-}
-
-// Ephemeral constructor. An Ephemeral holds a "constant" value which is generated when
-// the Init method is called on the provided Opcode. Prior to this the value is nil.
-func Ephemeral(name string, op Opcode) Opcode {
-    return ephemeral{ &baseFunc{name,0}, op, nil }
 }
 
 // Arity method returns the number of arguments for the opcode
@@ -94,60 +84,38 @@ func (v variable) Eval(input ...Value) Value { return input[v.Narg] }
 // Format method is called by Expr.Format to return a expression in a human readable format
 func (v variable) Format(args ...string) string { return v.name }
 
+// An EphemeralConstant is a subtype of Opcode. It is typically used to hold a random 
+// constant value which is set at when an individual is generated. Implementations of the
+// gp.Generator interface should call Init() to get the constant on creation of a new
+// individual.
+type EphemeralConstant interface {
+    Opcode
+    Init() Opcode
+}
+
 type ephemeral struct {
     *baseFunc
-    op  Opcode
+    gen Opcode
     val Value
+}
+
+// Ephemeral constructor. An Ephemeral holds a "constant" value which is generated when
+// the Init method is called on the provided Opcode. Prior to this the value is nil.
+func Ephemeral(name string, gen Opcode) EphemeralConstant {
+    return ephemeral{ &baseFunc{name,0}, gen, nil }
 }
 
 // Eval method for ephemeral returns the value which was generated when Init was called
 func (o ephemeral) Eval(args ...Value) Value { return o.val }
 
 // Init method for ephemeral returns a new ephemeral constant with the value set
-func (o ephemeral) Init() ephemeral{
-    return ephemeral{ o.baseFunc, o.op, o.op.Eval() }
+func (o ephemeral) Init() Opcode {
+    return ephemeral{ o.baseFunc, o.gen, o.gen.Eval() }
 }
 
 // Format method is called by Expr.Format to return a expression in a human readable format
 func (o ephemeral) Format(args ...string) string {
     return fmt.Sprint(o.val)
-}
-
-// CreatePrimitiveSet constructor takes a list of variable names.
-func CreatePrimitiveSet(vars ...string) *PrimSet {
-    pset := &PrimSet{}
-    pset.primitives = []Opcode{}
-    pset.terminals = make([]Opcode, len(vars))
-    for i, name := range vars {
-        pset.terminals[i] = Variable(name, i)
-    }
-    return pset
-}
-
-// Add method adds a new Opcode to the primitive set.
-func (pset *PrimSet) Add(ops ...Opcode) {
-    for _, op := range ops {
-        if op.Arity() > 0 {
-            pset.primitives = append(pset.primitives, op)
-        } else {
-            pset.terminals = append(pset.terminals, op)
-        }
-    }
-}
-
-// Var returns the nth variable in the primitive set.
-func (pset *PrimSet) Var(n int) Opcode {
-    return pset.terminals[n]
-}
-
-// Terminals returns the list of terminal arity 0 opcodes. 
-func (pset *PrimSet) Terminals() []Opcode {
-    return pset.terminals
-}
-
-// Primitives returns the list of non-terminal opcodes (arity > 0).
-func (pset *PrimSet) Primitives() []Opcode { 
-    return pset.primitives
 }
 
 // Clone makes a copy of an expression.
@@ -215,6 +183,24 @@ func (e Expr) Depth() int {
         }
     }
     return maxDepth
+}
+
+// ReplaceSubtree replaces the code at pos with subtree without updating the subtree argument.
+func (e Expr) ReplaceSubtree(pos int, subtree Expr) Expr {
+    end := e.Traverse(pos, nil, nil)
+    tail := subtree
+    if end < len(e)-1 {
+        tail = append(tail.Clone(), e[end+1:]...)
+    }
+    return append(e[:pos], tail...)
+}
+
+// RandomSubtree returns postion and a copy of nodes in randomly selected subtree of code
+func (e Expr) RandomSubtree() (pos int, subtree Expr) {
+    pos = rand.Intn(len(e))
+    end := e.Traverse(pos, nil, nil)
+    subtree = e[pos:end+1].Clone()
+    return
 }
 
 

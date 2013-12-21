@@ -100,7 +100,7 @@ func MutUniform(gen Generator, pset *PrimSet) Variation {
         tree := ind[0].Code
         pos := rand.Intn(len(tree))
         newtree := gen.Generate(pset).Code
-        ind[0] = NewIndiv(replaceSubtree(pos, tree, newtree))
+        ind[0] = Create(tree.ReplaceSubtree(pos, newtree))
         return ind
     }
     return &variation{ []Decorator{}, mutate }
@@ -113,31 +113,13 @@ func CxOnePoint() Variation {
         if ind[0].Size() < 2 || ind[1].Size() < 2 {
             return ind
         }
-        pos1, subtree1 := getRandomSubtree(ind[0].Code)
-        pos2, subtree2 := getRandomSubtree(ind[1].Code)
-        ind[0] = NewIndiv(replaceSubtree(pos1, ind[0].Code, subtree2))
-        ind[1] = NewIndiv(replaceSubtree(pos2, ind[1].Code, subtree1))
+        pos1, subtree1 := ind[0].Code.RandomSubtree()
+        pos2, subtree2 := ind[1].Code.RandomSubtree()
+        ind[0] = Create(ind[0].Code.ReplaceSubtree(pos1, subtree2))
+        ind[1] = Create(ind[1].Code.ReplaceSubtree(pos2, subtree1))
         return ind
     }
     return &variation{ []Decorator{}, cross }
-}
-
-// replace subtree in code at pos with subtree - code is updated, but subtree arg is not
-func replaceSubtree(pos int, code, subtree Expr) Expr {
-    end := code.Traverse(pos, nil, nil)
-    tail := subtree
-    if end < len(code)-1 {
-        tail = append(tail.Clone(), code[end+1:]...)
-    }
-    return append(code[:pos], tail...)
-}
-
-// return a copy of nodes in randomly selected subtree of code - returns a copy
-func getRandomSubtree(code Expr) (pos int, subtree Expr) {
-    pos = rand.Intn(len(code))
-    end := code.Traverse(pos, nil, nil)
-    subtree = code[pos:end+1].Clone()
-    return
 }
 
 // Best returns the best individual by fitness.

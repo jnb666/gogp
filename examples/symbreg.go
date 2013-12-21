@@ -9,8 +9,9 @@ import (
     "runtime/pprof"
     _ "math"
     "math/rand"
+    "github.com/jnb666/gogp/expr"
     "github.com/jnb666/gogp/gp"
-    . "github.com/jnb666/gogp/num"
+    "github.com/jnb666/gogp/num"
 )
 
 // constants
@@ -28,17 +29,17 @@ func TargetFunc(x float64) float64 {
 }
 
 // terminal function to generate random integer in range -1:+1
-var ercgen = NumFunc("rnd", 0, func(...Num)Num { return Num(rand.Intn(3)-1) })
-//var ercgen = Terminal("rnd", func()Num { return Num(rand.Intn(11)-5) })
+var ercgen = num.Func("rnd", 0, func([]num.V)num.V { return num.V(rand.Intn(3)-1) })
+//var ercgen = num.Func("rnd", 0, func([]num.V)num.V { return num.V(rand.Intn(11)-5) })
 
 // implement the evaluator interface to get fitness
 // least squares difference - return as normalised fitness from 0->1
 type EvalFitness struct { *gp.PrimSet }
 
-func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
+func (e EvalFitness) GetFitness(code expr.Expr) (float64, bool) {
     diff := 0.0
     for x := RANGE_MIN; x <= RANGE_MAX; x += RANGE_STEP {
-        d1 := float64(code.Eval([]gp.Value{Num(x)}).(Num))
+        d1 := float64(code.Eval([]expr.Value{num.V(x)}).(num.V))
         d2 := TargetFunc(x)
         diff += (d1-d2)*(d1-d2)
     }
@@ -46,9 +47,9 @@ func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
 }
 
 func primSet() *gp.PrimSet {
-    pset := gp.CreatePrimitiveSet("x")
-    pset.Add(Add, Sub, Mul, Div, Neg)
-    pset.Add(gp.Ephemeral("ERC", ercgen))
+    pset := gp.CreatePrimSet("x")
+    pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
+    pset.Add(expr.Ephemeral("ERC", ercgen))
     return pset
 }
 
