@@ -25,8 +25,24 @@ type Stats struct {
 }
 
 // Stats data holds the values for a single metric
-type StatsData struct {
-    Min, Max, Avg, Std float64
+type StatsData struct { Min, Max, Avg, Std float64 }
+
+// StatsHistory implements the plotinum plotter.XYer and plotter.YErrorer interfaces
+type StatsHistory []struct{X, Y, Err float64}
+
+// Len returns the number of elements in the slice of points
+func (h StatsHistory) Len() int { return len(h) }
+
+// XY returns the ith point in the slice
+func (h StatsHistory) XY(i int) (x, y float64) {
+    x, y = h[i].X, h[i].Y
+    return
+}
+
+// Yerror returns the high and low errors
+func (h StatsHistory) YError(i int) (low, high float64) {
+    low, high = h[i].Err, h[i].Err
+    return
 }
 
 // GetStats calculates stats on fitness, size and depth for the given population

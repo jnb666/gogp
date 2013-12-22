@@ -34,6 +34,7 @@ type Model struct {
     MutateProb, CrossoverProb float64
     Mutate, Crossover Variation
     Fitness func(Expr) (float64, bool)
+    stats []*Stats
 }
 
 // The GetFitness method is provided so that the Model type implements the Evaluator interface
@@ -54,11 +55,13 @@ func (m *Model) Run(callback func(*Stats) bool) {
     gen, evals := 0, 0
     pop := CreatePopulation(m.PopSize, m.Generator)
     pop, evals = pop.Evaluate(m, m.Threads)
-    for !callback(GetStats(pop, gen, evals)) {
+    m.stats = append([]*Stats{}, GetStats(pop, gen, evals))
+    for !callback(m.stats[gen]) {
+        gen++
         offspring := m.Offspring.Select(pop, m.PopSize)
         pop = VarAnd(offspring, m.Crossover, m.Mutate, m.CrossoverProb, m.MutateProb)
         pop, evals = pop.Evaluate(m, m.Threads)
-        gen++
+        m.stats = append(m.stats, GetStats(pop, gen, evals))
     }
 }
 
@@ -71,6 +74,29 @@ func (m *Model) PrintParams(title string) {
     }
     fmt.Println()
 }
+
+// GetHistory looks up the given Stats field and returns a slice of the values for each
+// generation. e.g. m.GetHistory("fitMax") returns the maximum fitness
+func (m *Model) GetHistory(field string) StatsHistory {
+    data := make(StatsHistory, len(m.stats))
+    for gen, stats := range m.stats {
+        data[gen].X = float64(gen)
+        data[gen].Y = stats.Get(field).(float64)
+    }
+    return data
+}
+
+// GetHistoryErrors is as per GetHistory but also returns associated error bars
+func (m *Model) GetHistoryErrors(field, errorField string) StatsHistory {
+    data := make(StatsHistory, len(m.stats))
+    for gen, stats := range m.stats {
+        data[gen].X = float64(gen)
+        data[gen].Y = stats.Get(field).(float64)
+        data[gen].Err = stats.Get(errorField).(float64)
+    }
+    return data
+}
+
 
 // VarAnd is a simple algorith to apply crossover and mutation variations with given probabilities.
 func VarAnd(pop Population, cross, mutate Variation, cx_prob, mut_prob float64) Population {
