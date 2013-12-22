@@ -5,7 +5,6 @@ import (
     pplot "code.google.com/p/plotinum/plot"
     "code.google.com/p/plotinum/plotter"
     "code.google.com/p/plotinum/plotutil"
-    "github.com/jnb666/gogp/gp"
 )
 
 type Plot struct {
@@ -26,26 +25,28 @@ func New(title string) (*Plot, error) {
 }
 
 // The AddLine function adds a line plot for the given statistics metric
-func (p *Plot) AddLine(model *gp.Model, field string) error {
-    line, err := plotter.NewLine(model.GetHistory(field))
+func (p *Plot) AddLine(name string, points plotter.XYer) error {
+    line, err := plotter.NewLine(points)
     if err != nil { return err }
     line.Color = p.nextColor()
     p.Add(line)
-    p.Legend.Add(field, line)
+    p.Legend.Add(name, line)
     return nil
 }
 
 // The AddLinesErrors function adds line plot with Y error bars for the given statistics metric
-func (p *Plot) AddLineErrors(model *gp.Model, field, errField string) error {
-    data := model.GetHistoryErrors(field, errField)
+func (p *Plot) AddLineErrors(name string, points interface{
+        plotter.XYer
+        plotter.YErrorer
+    }) error {
     // the line
-    line, err := plotter.NewLine(data)
+    line, err := plotter.NewLine(points)
     if err != nil { return err }
     line.Color = p.nextColor()
     p.Add(line)
-    p.Legend.Add(field, line)
+    p.Legend.Add(name, line)
     // and the errors
-    bars, err := plotter.NewYErrorBars(data)
+    bars, err := plotter.NewYErrorBars(points)
     if err != nil { return err }
     bars.Color = line.Color
     p.Add(bars)

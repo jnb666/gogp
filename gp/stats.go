@@ -28,20 +28,35 @@ type Stats struct {
 type StatsData struct { Min, Max, Avg, Std float64 }
 
 // StatsHistory implements the plotinum plotter.XYer and plotter.YErrorer interfaces
-type StatsHistory []struct{X, Y, Err float64}
+type StatsHistory struct {
+    stats []*Stats
+    field, errorField string
+}
 
-// Len returns the number of elements in the slice of points
-func (h StatsHistory) Len() int { return len(h) }
+// The NewStatsHistory constructor returns an reference to the stats data for a given field from the Model.
+// If the errorField is set then this used to get the y errors, else they will be zero.
+func GetStatsHistory(m *Model, field, errorField string) StatsHistory {
+    return StatsHistory{ m.stats, field, errorField }
+}
 
-// XY returns the ith point in the slice
+// Len returns the number of points in total, i.e. no. of generations
+func (h StatsHistory) Len() int {
+    return len(h.stats)
+}
+
+// XY returns the X and Y values of the ith point
 func (h StatsHistory) XY(i int) (x, y float64) {
-    x, y = h[i].X, h[i].Y
+    x, y = float64(i), h.stats[i].Get(h.field).(float64)
     return
 }
 
-// Yerror returns the high and low errors
+// YError returns the size of error bar associated with the ith point. Currently the low and high
+// error will always be the same.
 func (h StatsHistory) YError(i int) (low, high float64) {
-    low, high = h[i].Err, h[i].Err
+    if h.errorField != "" {
+        err := h.stats[i].Get(h.errorField).(float64)
+        low, high = err, err
+    }
     return
 }
 

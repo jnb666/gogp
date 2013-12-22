@@ -75,29 +75,6 @@ func (m *Model) PrintParams(title string) {
     fmt.Println()
 }
 
-// GetHistory looks up the given Stats field and returns a slice of the values for each
-// generation. e.g. m.GetHistory("fitMax") returns the maximum fitness
-func (m *Model) GetHistory(field string) StatsHistory {
-    data := make(StatsHistory, len(m.stats))
-    for gen, stats := range m.stats {
-        data[gen].X = float64(gen)
-        data[gen].Y = stats.Get(field).(float64)
-    }
-    return data
-}
-
-// GetHistoryErrors is as per GetHistory but also returns associated error bars
-func (m *Model) GetHistoryErrors(field, errorField string) StatsHistory {
-    data := make(StatsHistory, len(m.stats))
-    for gen, stats := range m.stats {
-        data[gen].X = float64(gen)
-        data[gen].Y = stats.Get(field).(float64)
-        data[gen].Err = stats.Get(errorField).(float64)
-    }
-    return data
-}
-
-
 // VarAnd is a simple algorith to apply crossover and mutation variations with given probabilities.
 func VarAnd(pop Population, cross, mutate Variation, cx_prob, mut_prob float64) Population {
     offspring := pop.Clone()
