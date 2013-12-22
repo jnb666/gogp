@@ -48,7 +48,7 @@ func Fitness() EvalFitness {
 func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
     correct := 0
     for i, input := range e.in {
-        res := code.Eval(input)
+        res := code.Eval(input...)
         if res == e.out[i] { correct++ }
     }
     return float64(correct)/float64(e.size) , true

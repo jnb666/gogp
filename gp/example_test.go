@@ -4,7 +4,7 @@ package gp_test
 import (
     "fmt"
     "github.com/jnb666/gogp/gp"
-    . "github.com/jnb666/gogp/num"
+    "github.com/jnb666/gogp/num"
 )
 
 type eval struct {}
@@ -13,7 +13,7 @@ type eval struct {}
 func (e eval) GetFitness(code gp.Expr) (float64, bool) {
     diff := 0.0
     for x := -1.0; x <= 1.0; x += 0.1 {
-        val := float64(code.Eval([]gp.Value{V(x)}).(V))
+        val := float64(code.Eval(num.V(x)).(num.V))
         fun := x*x*x*x + x*x*x + x*x + x
         diff += (val-fun)*(val-fun)
     }
@@ -24,7 +24,7 @@ func Example_gp() {
     // create initial population
     gp.SetSeed(1)
     pset := gp.CreatePrimSet(1, "x")
-    pset.Add(Add, Sub, Mul, Div, Neg, V(0), V(1))
+    pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg, num.V(0), num.V(1))
     generator :=  gp.GenFull(pset, 1, 3)
     pop, evals := gp.CreatePopulation(500, generator).Evaluate(eval{}, 1)
     best := pop.Best()

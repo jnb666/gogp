@@ -113,7 +113,7 @@ func (e Expr) Traverse(pos int, nfunc, tfunc func(Opcode)) int {
 }
 
 // Eval evaluates an expression for given input values by calling the Eval method on each Opcode.
-func (e Expr) Eval(input []Value) Value {
+func (e Expr) Eval(input ...Value) Value {
     list := []Value{}
     node := func(op Opcode) {
         end := len(list)-op.Arity()

@@ -38,7 +38,7 @@ func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
     return func(code gp.Expr) (float64, bool) {
         diff := 0.0
         for _, pt := range trainSet {
-            val := float64(code.Eval([]gp.Value{num.V(pt.x)}).(num.V))
+            val := float64(code.Eval(num.V(pt.x)).(num.V))
             diff += (val-pt.y)*(val-pt.y)
         }
         return 1.0/(1.0+diff), true

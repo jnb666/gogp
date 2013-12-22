@@ -64,7 +64,7 @@ func TestEval(t *testing.T) {
     expect := []V{13, 25, 10.5, 0, 6}
     rand.Seed(1)
     for i, expect := range expect {
-        val := exprs[i].Eval([]gp.Value{V(3), V(4)})
+        val := exprs[i].Eval(V(3), V(4))
         t.Log(exprs[i], "(3,4) ", exprs[i].Format(), " => ", val)
     	if val != expect { t.Errorf("Eval(%s) = %f", exprs[i], val) }
     }
@@ -78,7 +78,7 @@ func TestGenerate(t *testing.T) {
     gp.SetSeed(0)
     for i:=0; i<10; i++ {
         ind := gen.Generate()
-        res := ind.Code.Eval([]gp.Value{V(6), V(7)})
+        res := ind.Code.Eval(V(6), V(7))
         t.Log(ind.Code, ind.Code.Format(), "(6,7) =>", res)
     }
 }
@@ -92,7 +92,7 @@ func TestEphemeral(t *testing.T) {
     gp.SetSeed(2)
     ind := gen.Generate()
     t.Log(ind.Code, ind.Code.Format())
-    val := ind.Code.Eval([]gp.Value{V(6), V(7)})
+    val := ind.Code.Eval(V(6), V(7))
     t.Log("evals to", val, "for x=6 y=7")
     if val != V(16) { t.Errorf("Eval(%s) = %f", ind.Code, val) }
 }
