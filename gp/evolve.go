@@ -1,21 +1,75 @@
 // gogp is a library for Koza style genetic programming in Go.
 package gp
-import "math/rand"
+import (
+    "math/rand"
+    "fmt"
+    "reflect"
+)
 
 // interface for selecting individuals from population, should use clone to make a deep copy
 type Selector interface {
     Select(pop Population, num int) Population
+    String() string
 }
 
 // Variation is an interface for applying a genetic operation to one or more Individuals.
 type Variation interface {
     AddDecorator(Decorator)
     Variate(ind Population) Population
+    String() string
 }
 
 // Decorator is an interface for providing a function which can wrap a call to a Variation.
 type Decorator interface {
     Decorate(in, out *Individual) *Individual
+    String() string
+}
+
+// The Model type encapsulates a complete problem
+type Model struct {
+    PrimitiveSet *PrimSet
+    PopSize, Threads int
+    Generator Generator
+    Offspring Selector
+    MutateProb, CrossoverProb float64
+    Mutate, Crossover Variation
+    Fitness func(Expr) (float64, bool)
+}
+
+// The GetFitness method is provided so that the Model type implements the Evaluator interface
+func (m *Model) GetFitness(code Expr) (float64, bool) {
+    return m.Fitness(code)
+}
+
+// AddDecorator method adds a decorator function to the mutate and crossover operations
+func (m *Model) AddDecorator(decor Decorator) { 
+    m.Mutate.AddDecorator(decor)
+    m.Crossover.AddDecorator(decor)
+}
+
+// The Run method first creates a new population and iteratively evolves it
+// using the VarAnd algorithm. The callback function is called for each generation,
+// if it returns a true value then the evolution process terminates.
+func (m *Model) Run(callback func(*Stats) bool) {
+    gen, evals := 0, 0
+    pop := CreatePopulation(m.PopSize, m.Generator)
+    pop, evals = pop.Evaluate(m, m.Threads)
+    for !callback(GetStats(pop, gen, evals)) {
+        offspring := m.Offspring.Select(pop, m.PopSize)
+        pop = VarAnd(offspring, m.Crossover, m.Mutate, m.CrossoverProb, m.MutateProb)
+        pop, evals = pop.Evaluate(m, m.Threads)
+        gen++
+    }
+}
+
+// PrintParams prints the config parameters for this run to stdout
+func (m *Model) PrintParams(title string) {
+    fmt.Println(title)
+	s := reflect.ValueOf(m).Elem()
+    for i:=0; i<s.NumField()-1; i++ {
+		fmt.Printf("%14s = %v\n", s.Type().Field(i).Name, s.Field(i).Interface())
+    }
+    fmt.Println()
 }
 
 // VarAnd is a simple algorith to apply crossover and mutation variations with given probabilities.
@@ -49,10 +103,16 @@ func (pop Population) Clone() Population {
 type variation struct {
     decorators []Decorator
     vfunc func(in Population) (out Population)
+    name string
+}
+
+func (v *variation) String() string {
+    return v.name
 }
 
 func (v *variation) AddDecorator(decor Decorator) {
     v.decorators = append(v.decorators, decor)
+    v.name += fmt.Sprintf("<%s>", decor)
 }
 
 func (v *variation) Variate(in Population) Population {
@@ -76,7 +136,7 @@ func MutUniform(gen Generator) Variation {
         ind[0] = Create(tree.ReplaceSubtree(pos, newtree))
         return ind
     }
-    return &variation{ []Decorator{}, mutate }
+    return &variation{ []Decorator{}, mutate, fmt.Sprintf("MutUniform(%s)", gen) }
 }
 
 // CxOnePoint returns a crossover Variation which operates on a pair of Individuals.
@@ -92,7 +152,7 @@ func CxOnePoint() Variation {
         ind[1] = Create(ind[1].Code.ReplaceSubtree(pos2, subtree1))
         return ind
     }
-    return &variation{ []Decorator{}, cross }
+    return &variation{ []Decorator{}, cross, "CxOnePoint" }
 }
 
 // Best returns the best individual by fitness.
@@ -112,6 +172,10 @@ type tournament struct { TournamentSize int }
 // Tournament returns a selector to select the the best out of tsize random samples from the population.
 func Tournament(tsize int) Selector {
     return tournament{ tsize }
+}
+
+func (s tournament) String() string {
+    return fmt.Sprintf("Tournament(%d)", s.TournamentSize)
 }
 
 func (s tournament) Select(pop Population, num int) Population {
@@ -134,6 +198,10 @@ func RandomSel() Selector {
     return randomSel{}
 }
 
+func (s randomSel) String() string {
+    return "RandomSel"
+}
+
 func (s randomSel) Select(pop Population, num int) Population {
     chosen := Population{}
     for i := 0; i < num; i++ {
@@ -142,16 +210,23 @@ func (s randomSel) Select(pop Population, num int) Population {
     return chosen
 }
 
+type decorBase struct { name string }
+
+func (d decorBase) String() string { return d.name }
+
 // SizeLimit returns a decorator which applies a static limit to the maximum expression size. 
 func SizeLimit(max int) Decorator {
-    return sizeLimit{ max }
+    return sizeLimit{ decorBase{fmt.Sprintf("SizeLimit(%d)",max)}, max }
 }
 
-type sizeLimit struct { Max int }
+type sizeLimit struct {
+    decorBase
+    max int
+}
 
 // If the maxium size is exceeded, return the individual prior to variation.
 func (d sizeLimit) Decorate(in, out *Individual) *Individual {
-    if out.Size() > d.Max {
+    if out.Size() > d.max {
         return in
     } else {
         return out
@@ -160,19 +235,23 @@ func (d sizeLimit) Decorate(in, out *Individual) *Individual {
 
 // DepthLimit returns a decorator which applies a static limit to the maximum tree depth.
 func DepthLimit(max int) Decorator {
-    return depthLimit{ max }
+    return depthLimit{ decorBase{fmt.Sprintf("DepthLimit(%d)",max)}, max }
 }
 
-type depthLimit struct { Max int }
+type depthLimit struct {
+    decorBase
+    max int
+}
 
 // If the maxium depth is exceeded, return the individual prior to variation.
 func (d depthLimit) Decorate(in, out *Individual) *Individual {
-    if out.Depth() > d.Max {
+    if out.Depth() > d.max {
         return in
     } else {
         return out
     }
 }
+
 
     
 

@@ -32,6 +32,7 @@ func (pop Population) Print() {
 // typically by a random expression generation algorithm. 
 type Generator interface {
     Generate() *Individual
+    String() string
 }
 
 // each generator embeds this base structure
@@ -39,6 +40,11 @@ type genBase struct {
     pset *PrimSet
     min, max int
     condition func(height, depth int) bool
+    name string
+}
+
+func (g genBase) String() string {
+    return g.name
 }
 
 // GenFull returns a generator to produce individuals with expression trees such
@@ -47,6 +53,7 @@ func GenFull(pset *PrimSet, min, max int) Generator {
     return genBase{
         pset, min, max,
         func(height, depth int) bool { return depth == height },
+        fmt.Sprintf("GenFull(%d,%d)", min, max),
     }
 }
 
@@ -60,11 +67,16 @@ func GenGrow(pset *PrimSet, min, max int) Generator {
         func(height, depth int) bool {
             return depth == height || (depth >= min && rand.Float64() < terminalRatio)
         },
+        fmt.Sprintf("GenGrow(%d,%d)", min, max),
     }
 }
 
 type genRamped struct {
     full, grow Generator
+}
+
+func (g genRamped) String() string {
+    return fmt.Sprintf("GenRamped(%d,%d)", g.full.(genBase).min, g.full.(genBase).max)
 }
 
 // GenRamped returns a generator which uses either the GenFull or GenRamped algorithm

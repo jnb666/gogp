@@ -2,11 +2,17 @@ package gp
 import (
     "fmt"
     "math"
+    "reflect"
+    "strings"
 )
 
-// Columns for statistics logging 
-var LogColumns = []string{"gen", "evals", "fitMax", "fitAvg", "fitStd",
-                     "sizeAvg", "sizeMax", "depthAvg", "depthMax"}
+// Formatting for logging implemented in Stats.String() method.
+// The default set of columns and format strings are set on initialisation 
+var (
+    LogColumn = []string{"gen", "evals", "fitMax", "fitAvg", "fitStd", "sizeAvg", "sizeMax", "depthAvg", "depthMax"}
+    LogColumnFmt = []string{"d", "d", ".3g", ".3g", ".3g", ".3g", ".3g", ".3g", ".3g"}
+    LogColumnWidth = 8
+)
 
 // Stats structure holds the statistics for the give Population. 
 type Stats struct {
@@ -18,6 +24,7 @@ type Stats struct {
     Depth   StatsData
 }
 
+// Stats data holds the values for a single metric
 type StatsData struct {
     Min, Max, Avg, Std float64
 }
@@ -49,18 +56,49 @@ func updateStats(pop Population, d *StatsData, getval func(*Individual)float64) 
     d.Std = math.Sqrt(d.Std)
 }
 
+// The Get method returns the data in the named field, name must be a valid field else this will panic
+func (d *StatsData) Get(name string) interface{} {
+    fld := reflect.ValueOf(d).Elem().FieldByName(name)
+    return fld.Interface()
+}
+
+// The Get method returns the data in the named field where field name is one of
+// the field names defined in LogColumn package variable
+func (s *Stats) Get(name string) (val interface{}) {
+    switch {
+        case name == "gen":
+            val = s.Generation
+        case name == "evals":
+            val = s.Evals
+        case strings.HasPrefix(name, "fit"):
+            val = s.Fitness.Get(strings.TrimPrefix(name, "fit"))
+        case strings.HasPrefix(name, "size"):
+            val = s.Size.Get(strings.TrimPrefix(name, "size"))
+        case strings.HasPrefix(name, "depth"):
+            val = s.Depth.Get(strings.TrimPrefix(name, "depth"))
+        default:
+            panic(name + " does not reference any valid StatsData field")
+    }
+    return
+}
+
 // String method returns formatted stats data for logging
 func (s *Stats) String() string {
+    cols := make([]string, len(LogColumn))
     text := ""
     if s.Generation == 0 {
-        for _, col := range LogColumns {
-            text += fmt.Sprintf("%-8s ", col)
+        format := fmt.Sprintf("%%-%ds", LogColumnWidth) 
+        for i, col := range LogColumn {
+            cols[i] = fmt.Sprintf(format, col)
         }
-        text += "\n"
+        text += strings.TrimSpace(strings.Join(cols, " ")) + "\n"
     }
-    text += fmt.Sprintf("%-8d %-8d %-8.3g %-8.3g %-8.3g %-8.3g %-8.3g %-8.3g %-8.3g", 
-        s.Generation, s.Evals, s.Fitness.Max, s.Fitness.Avg, s.Fitness.Std, 
-        s.Size.Avg, s.Size.Max, s.Depth.Avg, s.Depth.Max)
+    for i, col := range LogColumn {
+        format := fmt.Sprintf("%%-%d%s", LogColumnWidth, LogColumnFmt[i])
+        cols[i] = fmt.Sprintf(format, s.Get(col))
+    }
+    // testing package does not like trailing space in examples!
+    text += strings.TrimSpace(strings.Join(cols, " "))
     return text
 }
 

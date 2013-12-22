@@ -100,6 +100,8 @@ func TestEphemeral(t *testing.T) {
 // test mutation
 type genProxy struct { expr gp.Expr }
 
+func (g genProxy) String() string { return "genProxy" }
+
 func (g genProxy) Generate() *gp.Individual {
     return &gp.Individual{Code: g.expr}
 }

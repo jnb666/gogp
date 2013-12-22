@@ -9,7 +9,6 @@ import (
     "fmt"
     "flag"
     "strings"
-    "reflect"
     "runtime"
     "runtime/pprof"
     "math/rand"
@@ -17,146 +16,122 @@ import (
     "github.com/jnb666/gogp/num"
 )
 
-// Config is used for global configuration settings
 type Config struct {
-    Threads int
-    Seed int64
-    Generations int
-    PopSize int
-    TournamentSize int
-    DepthLimit int
-    SizeLimit int
-    CrossoverProb float64
-    MutateProb float64
-    ERCmin, ERCmax int
-    DataFile string
+    maxGens, tournSize, maxSize, maxDepth int
+    seed int64
+    targetFitness float64
+    datafile, profile string
 }
 
-const TARGET = 0.99
-
-type Point [2]float64
+type Point struct { x, y float64 }
 
 // function to generate the random constant generator function
 func ercGen(start, end int) func()num.V {
+    fmt.Println("generate random constants in range", start, "to", end)
     return func()num.V {
         return num.V(start + rand.Intn(end-start+1))
     }
 }
 
-// implement the evaluator interface to get fitness
-type EvalFitness struct { 
-    trainSet []Point
+// returns function to calc least squares difference and return as normalised fitness from 0->1
+func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
+    return func(code gp.Expr) (float64, bool) {
+        diff := 0.0
+        for _, pt := range trainSet {
+            val := float64(code.Eval([]gp.Value{num.V(pt.x)}).(num.V))
+            diff += (val-pt.y)*(val-pt.y)
+        }
+        return 1.0/(1.0+diff), true
+    }
 }
 
-// calc least squares difference and return as normalised fitness from 0->1
-func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
-    diff := 0.0
-    for _, r := range e.trainSet {
-        val := float64(code.Eval([]gp.Value{num.V(r[0])}).(num.V))
-        diff += (val-r[1])*(val-r[1])
+// returns function to log stats for each generation
+func statsLogger(maxGens int, targetFitness float64) func(*gp.Stats) bool {
+    var best = gp.Individual{}
+    return func(stats *gp.Stats) bool {
+        fmt.Println(stats)
+        // print best if fitness is improved
+        if stats.Best.Fitness > best.Fitness {
+            best = *stats.Best
+            fmt.Println(best)
+        }
+        if stats.Fitness.Max >= targetFitness {
+            fmt.Println("** SUCCESS **")
+            return true
+        }
+        return stats.Generation > maxGens
     }
-    return 1.0/(1.0+diff), true
 }
 
 // main GP routine
 func main() {
-    var best = &gp.Individual{}
-    args, profile := getArgs()
-    eval := EvalFitness{ getData(args) }
-    printParams(args)
-    gp.SetSeed(args.Seed)
-	runtime.GOMAXPROCS(args.Threads)
+    problem := &gp.Model{}
+    args := getArgs(problem)
+    ercMin, ercMax, trainSet := getData(args.datafile)
+    gp.SetSeed(args.seed)
+	runtime.GOMAXPROCS(problem.Threads)
 
-    // create initial population
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
-    pset.Add(num.Ephemeral("ERC", ercGen(args.ERCmin, args.ERCmax)))
-    generate := gp.GenRamped(pset, 1, 3)
-    pop, evals := gp.CreatePopulation(args.PopSize, generate).Evaluate(eval, args.Threads)
-    stats := gp.GetStats(pop, 0, evals)
-    fmt.Println(stats)
+    pset.Add(num.Ephemeral("ERC", ercGen(ercMin, ercMax)))
 
-    // setup genetic variations
-    tournament := gp.Tournament(args.TournamentSize)
-    mutate := gp.MutUniform(gp.GenRamped(pset, 0, 2))
-    crossover := gp.CxOnePoint()
-    if args.DepthLimit > 0 {
-        limit := gp.DepthLimit(args.DepthLimit)
-        mutate.AddDecorator(limit)
-        crossover.AddDecorator(limit)
+    problem.PrimitiveSet = pset
+    problem.Generator = gp.GenRamped(pset, 1, 3)
+    problem.Fitness = fitnessFunc(trainSet)
+    problem.Offspring = gp.Tournament(args.tournSize)
+    problem.Mutate = gp.MutUniform(gp.GenRamped(pset, 0, 2))
+    problem.Crossover = gp.CxOnePoint()
+    if args.maxDepth > 0 {
+        problem.AddDecorator(gp.DepthLimit(args.maxDepth))
     }
-    if args.SizeLimit > 0 {
-        limit := gp.SizeLimit(args.SizeLimit)
-        mutate.AddDecorator(limit)
-        crossover.AddDecorator(limit)
+    if args.maxSize > 0 { 
+        problem.AddDecorator(gp.SizeLimit(args.maxSize))
     }
-
-	if profile != "" {
-		if file, err := os.Create(profile); err == nil {
-    		fmt.Println("writing CPU profile data to ", profile)
+    problem.PrintParams("== GP Symbolic Regression ==")
+	if args.profile != "" {
+		if file, err := os.Create(args.profile); err == nil {
+    		fmt.Println("writing CPU profile data to ", args.profile)
     		pprof.StartCPUProfile(file)
     		defer pprof.StopCPUProfile()
         }
 	}
-
-    // loop till reach target fitness or exceed no. of generations   
-    for gen := 1; gen <= args.Generations; gen++ {
-        if stats.Fitness.Max >= TARGET {
-            fmt.Println("** SUCCESS **")
-            break
-        }
-        offspring := tournament.Select(pop, args.PopSize)
-        pop, evals = gp.VarAnd(offspring, crossover, mutate, 
-                        args.CrossoverProb, args.MutateProb).Evaluate(eval, args.Threads)
-        stats = gp.GetStats(pop, gen, evals)
-        fmt.Println(stats)
-        if stats.Best.Fitness > best.Fitness {
-            best = stats.Best
-            fmt.Println(best)
-        }
-    }
+    problem.Run(statsLogger(args.maxGens, args.targetFitness))
 }
 
 // process cmd line flags and read input file
-func getArgs() (args *Config, profile string) {
-    args = &Config{}
-	flag.IntVar(&args.Threads, "threads", runtime.NumCPU(), "number of parallel threads")
-	flag.Int64Var(&args.Seed, "seed", 0, "random seed - set randomly if <= 0")
-	flag.IntVar(&args.Generations, "gens", 40, "maximum no. of generations")
-	flag.IntVar(&args.PopSize, "popsize", 500, "population size")
-	flag.IntVar(&args.TournamentSize, "tournsize", 5, "tournament size")
-	flag.IntVar(&args.SizeLimit, "size", 0, "maximum tree size - zero for none")
-	flag.IntVar(&args.DepthLimit, "depth", 0, "maximum tree depth - zero for none")
-	flag.Float64Var(&args.CrossoverProb, "cxprob", 0.5, "crossover probability")
-	flag.Float64Var(&args.MutateProb, "mutprob", 0.2, "mutation probability")
-	flag.StringVar(&profile, "cpuprofile", "", "write cpu profile to file")
-	flag.StringVar(&args.DataFile, "trainset", "poly.dat", "file with training function")
+func getArgs(m *gp.Model) *Config {
+    args := &Config{}  
+	flag.IntVar(&args.maxGens, "gens", 40, "maximum no. of generations")
+	flag.Float64Var(&args.targetFitness, "target", 0.99, "target fitness")
+	flag.IntVar(&args.tournSize, "tournsize", 5, "tournament size")
+	flag.IntVar(&args.maxSize, "size", 0, "maximum tree size - zero for none")
+	flag.IntVar(&args.maxDepth, "depth", 0, "maximum tree depth - zero for none")
+	flag.IntVar(&m.PopSize, "popsize", 500, "population size")
+	flag.IntVar(&m.Threads, "threads", runtime.NumCPU(), "number of parallel threads")
+	flag.Float64Var(&m.CrossoverProb, "cxprob", 0.5, "crossover probability")
+	flag.Float64Var(&m.MutateProb, "mutprob", 0.2, "mutation probability")
+	flag.Int64Var(&args.seed, "seed", 0, "random seed - set randomly if <= 0")
+	flag.StringVar(&args.datafile, "trainset", "poly.dat", "file with training function")
+	flag.StringVar(&args.profile, "cpuprofile", "", "write cpu profile to file")
 	flag.Parse()
-    return
-}
-
-// print the config parameters for this run
-func printParams(args *Config) {
-    fmt.Printf("== GP Symbolic Regression ==\n")
-	s := reflect.ValueOf(args).Elem()
-    for i:=0; i<s.NumField(); i++ {
-		fmt.Printf("%14s = %v\n", s.Type().Field(i).Name, s.Field(i).Interface())
-    }
+    return args
 }
 
 // read data file
-func getData(args *Config) []Point {
-    file, err := os.Open(args.DataFile)
+func getData(filename string) (ERCmin, ERCmax int, trainSet []Point) {
+    file, err := os.Open(filename)
     defer file.Close()
     checkErr(err)
     scanner := bufio.NewScanner(file)
-    getLine(scanner, &args.ERCmin, &args.ERCmax)
-    trainSet := []Point{}
+    // first line has params for random constant generation
+    getLine(scanner, &ERCmin, &ERCmax)
+    // rest are x and y points
+    trainSet = []Point{}
     var p Point
-    for getLine(scanner, &p[0], &p[1]) {
+    for getLine(scanner, &p.x, &p.y) {
         trainSet = append(trainSet, p)
     }
-    return trainSet
+    return
 }
 
 func getLine(s *bufio.Scanner, item1, item2 interface{}) bool {

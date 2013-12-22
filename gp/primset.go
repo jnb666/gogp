@@ -1,5 +1,8 @@
 package gp
-import "strconv"
+import (
+    "strconv"
+    "fmt"
+)
 
 // A PrimSet represents the set of all of primitive opcodes for a given run.
 // NumVars is the number of input variables, Terminals a list of all the terminal zero arity nodes
@@ -27,6 +30,13 @@ func CreatePrimSet(nvars int, varNames ...string) *PrimSet {
         pset.Terminals[i] = Variable(name, i)
     }
     return pset
+}
+
+// String returns a string representation of the list of primitives
+func (pset *PrimSet) String() string {
+    var ops Expr
+    ops = append(pset.Terminals, pset.Primitives...)
+    return fmt.Sprint(ops)
 }
 
 // Add method adds a new Opcode to the primitive set.
