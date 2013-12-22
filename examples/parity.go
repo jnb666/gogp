@@ -17,7 +17,6 @@ const TARGET = 0.99
 
 // implements gp.Evaluator
 type EvalFitness struct { 
-    *gp.PrimSet
     size int
     in  [][]gp.Value
     out []gp.Value
@@ -71,15 +70,15 @@ func main() {
     // create initial generation
     pset := gp.CreatePrimSet(PARITY_FANIN)
     pset.Add(And, Or, Xor, Not, True, False)
-    generate := gp.GenFull(3, 5)
+    generate := gp.GenFull(pset, 3, 5)
     eval := Fitness()
-    pop, evals := gp.CreatePopulation(popsize, generate, pset).Evaluate(eval, threads)
+    pop, evals := gp.CreatePopulation(popsize, generate).Evaluate(eval, threads)
     stats := gp.GetStats(pop, 0, evals)
     fmt.Println(stats)
 
     // loop till reach target fitness or exceed no. of generations
     tournament := gp.Tournament(3)
-    mutate := gp.MutUniform(gp.GenGrow(0, 2), pset)
+    mutate := gp.MutUniform(gp.GenGrow(pset, 0, 2))
     crossover := gp.CxOnePoint()
     for gen := 1; gen <= generations; gen++ {
         if stats.Fitness.Max >= TARGET {

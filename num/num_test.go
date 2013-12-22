@@ -74,10 +74,10 @@ func TestEval(t *testing.T) {
 func TestGenerate(t *testing.T) {
     pset := initPset(false)
     pset.Add(V(0), V(1))
-    gen := gp.GenRamped(1, 3)
+    gen := gp.GenRamped(pset, 1, 3)
     gp.SetSeed(0)
     for i:=0; i<10; i++ {
-        ind := gen.Generate(pset)
+        ind := gen.Generate()
         res := ind.Code.Eval([]gp.Value{V(6), V(7)})
         t.Log(ind.Code, ind.Code.Format(), "(6,7) =>", res)
     }
@@ -88,9 +88,9 @@ func TestEphemeral(t *testing.T) {
     pset := initPset(false)
     erc := Ephemeral("ERC", func()V { return V(rand.Intn(10)) })
     pset.Add(erc, erc, erc)
-    gen := gp.GenFull(1, 3)
+    gen := gp.GenFull(pset, 1, 3)
     gp.SetSeed(2)
-    ind := gen.Generate(pset)
+    ind := gen.Generate()
     t.Log(ind.Code, ind.Code.Format())
     val := ind.Code.Eval([]gp.Value{V(6), V(7)})
     t.Log("evals to", val, "for x=6 y=7")
@@ -100,7 +100,7 @@ func TestEphemeral(t *testing.T) {
 // test mutation
 type genProxy struct { expr gp.Expr }
 
-func (g genProxy) Generate(pset *gp.PrimSet) *gp.Individual {
+func (g genProxy) Generate() *gp.Individual {
     return &gp.Individual{Code: g.expr}
 }
 
@@ -118,8 +118,8 @@ func TestMutate(t *testing.T) {
     before := gp.Individual{ Code: exprs[1] }
     add := exprs[0]
     gen := genProxy{ add }
-    t.Log("mutate: ", before.Code ,"plus", gen.Generate(pset).Code)
-    mut := gp.MutUniform(gen, pset)
+    t.Log("mutate: ", before.Code ,"plus", gen.Generate().Code)
+    mut := gp.MutUniform(gen)
     rand.Seed(1)
     for i:=0; i<10; i++ {
         after := mut.Variate(gp.Population{before.Clone()})

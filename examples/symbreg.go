@@ -45,7 +45,6 @@ func ercGen(start, end int) func()num.V {
 
 // implement the evaluator interface to get fitness
 type EvalFitness struct { 
-    *gp.PrimSet 
     trainSet []Point
 }
 
@@ -63,7 +62,7 @@ func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
 func main() {
     var best = &gp.Individual{}
     args, profile := getArgs()
-    trainSet := getData(args)
+    eval := EvalFitness{ getData(args) }
     printParams(args)
     gp.SetSeed(args.Seed)
 	runtime.GOMAXPROCS(args.Threads)
@@ -72,15 +71,14 @@ func main() {
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
     pset.Add(num.Ephemeral("ERC", ercGen(args.ERCmin, args.ERCmax)))
-    generate := gp.GenRamped(1, 3)
-    eval := EvalFitness{ pset, trainSet }
-    pop, evals := gp.CreatePopulation(args.PopSize, generate, pset).Evaluate(eval, args.Threads)
+    generate := gp.GenRamped(pset, 1, 3)
+    pop, evals := gp.CreatePopulation(args.PopSize, generate).Evaluate(eval, args.Threads)
     stats := gp.GetStats(pop, 0, evals)
     fmt.Println(stats)
 
     // setup genetic variations
     tournament := gp.Tournament(args.TournamentSize)
-    mutate := gp.MutUniform(gp.GenRamped(0, 2), pset)
+    mutate := gp.MutUniform(gp.GenRamped(pset, 0, 2))
     crossover := gp.CxOnePoint()
     if args.DepthLimit > 0 {
         limit := gp.DepthLimit(args.DepthLimit)
