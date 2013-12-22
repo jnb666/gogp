@@ -2,7 +2,7 @@
 package num
 import (
     "fmt"
-    "github.com/jnb666/gogp/expr"
+    "github.com/jnb666/gogp/gp"
 )
 
 const DIVIDE_PROTECT = 1e-10
@@ -20,14 +20,14 @@ func protected_divide(a, b V) V {
     return V(a / b)
 }
 
-// V is a floating point value which implements the expr.Opcode interface
+// V is a floating point value which implements the gp.Opcode interface
 type V float64
 
 // Arity method returns the number of arguments for the opcode
 func (n V) Arity() int { return 0 }
 
 // Eval method for a numeric operator returns the numeric value
-func (n V) Eval(args ...expr.Value) expr.Value { return n }
+func (n V) Eval(args ...gp.Value) gp.Value { return n }
 
 // String method returns the name of the opcode
 func (n V) String() string { return fmt.Sprint(float64(n)) }
@@ -36,7 +36,7 @@ func (n V) String() string { return fmt.Sprint(float64(n)) }
 func (n V) Format(args ...string) string { return fmt.Sprint(float64(n)) }
 
 // Ephemeral constructor to create a numeric EphemeralConstant
-func Ephemeral(name string, gen func() V) expr.EphemeralConstant {
+func Ephemeral(name string, gen func() V) gp.EphemeralConstant {
     return erc{ gen:gen, name:name }
 }
 
@@ -46,7 +46,7 @@ type erc struct {
     name string
 }
 
-func (e erc) Init() expr.EphemeralConstant {
+func (e erc) Init() gp.EphemeralConstant {
     return erc{ e.gen(), e.gen, e.name }
 }
 
@@ -56,16 +56,16 @@ func (e erc) String() string {
 
 // Func constructor returns a numeric function with given arity 
 // which implements the gp.Opcode interface
-func Func(name string, arity int, fun func([]V)V) expr.Opcode {
-    return numFunc{ expr.Function(name,arity), fun }
+func Func(name string, arity int, fun func([]V)V) gp.Opcode {
+    return numFunc{ gp.Function(name,arity), fun }
 }
 
 type numFunc struct{
-    expr.Opcode
+    gp.Opcode
     fun func([]V) V
 }
 
-func (o numFunc) Eval(iargs ...expr.Value) expr.Value {
+func (o numFunc) Eval(iargs ...gp.Value) gp.Value {
     args := make([]V, len(iargs))
     for i, iarg := range iargs {
         args[i] = iarg.(V)
@@ -73,45 +73,45 @@ func (o numFunc) Eval(iargs ...expr.Value) expr.Value {
     return o.fun(args)
 }
 
-// Term constructor returns a numeric terminal operator which implements the expr.Opcode interface
-func Term(name string, fun func() V) expr.Opcode {
-    return termOp{ expr.Function(name,0), fun }
+// Term constructor returns a numeric terminal operator which implements the gp.Opcode interface
+func Term(name string, fun func() V) gp.Opcode {
+    return termOp{ gp.Terminal(name), fun }
 }
 
 type termOp struct{
-    expr.Opcode
+    gp.Opcode
     fun func() V
 }
 
-func (o termOp) Eval(args ...expr.Value) expr.Value {
+func (o termOp) Eval(args ...gp.Value) gp.Value {
     return o.fun()
 }
 
-// Unary constructor returns a numeric unary operator which implements the expr.Opcode interface
-func Unary(name string, fun func(a V) V) expr.Opcode {
-    return unaryOp{ expr.Function(name,1), fun }
+// Unary constructor returns a numeric unary operator which implements the gp.Opcode interface
+func Unary(name string, fun func(a V) V) gp.Opcode {
+    return unaryOp{ gp.Function(name,1), fun }
 }
 
 type unaryOp struct{
-    expr.Opcode
+    gp.Opcode
     fun func(a V) V
 }
 
-func (o unaryOp) Eval(args ...expr.Value) expr.Value {
+func (o unaryOp) Eval(args ...gp.Value) gp.Value {
     return o.fun(args[0].(V))
 }
 
-// Op constructor returns a numeric binary operator which implements the expr.Opcode interface
-func Op(name string, fun func(a, b V)V) expr.Opcode {
-    return numOp{ expr.Operator(name), fun }
+// Op constructor returns a numeric binary operator which implements the gp.Opcode interface
+func Op(name string, fun func(a, b V)V) gp.Opcode {
+    return numOp{ gp.Operator(name), fun }
 }
 
 type numOp struct{
-    expr.Opcode
+    gp.Opcode
     fun func(a, b V) V
 }
 
-func (o numOp) Eval(args ...expr.Value) expr.Value {
+func (o numOp) Eval(args ...gp.Value) gp.Value {
     return o.fun(args[0].(V), args[1].(V))
 }
 

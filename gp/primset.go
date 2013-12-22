@@ -1,9 +1,9 @@
-package expr
-import (
-    "strconv"
-)
+package gp
+import "strconv"
 
-// A PrimSet represents the set of all of primitive opcodes for a given run. 
+// A PrimSet represents the set of all of primitive opcodes for a given run.
+// NumVars is the number of input variables, Terminals a list of all the terminal zero arity nodes
+// and Primitives are the nodes which have one or more arguments. 
 type PrimSet struct {
     NumVars int
     Terminals  []Opcode

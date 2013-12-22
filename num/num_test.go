@@ -3,7 +3,6 @@ import (
 	"testing"
     "math/rand"
     "math"
-    "github.com/jnb666/gogp/expr"
     "github.com/jnb666/gogp/gp"
 )
 
@@ -14,22 +13,22 @@ var (
 )
 
 // setup primitive set
-func initPset(all bool) *expr.PrimSet {
-    pset := expr.CreatePrimSet(2, "x", "y")
+func initPset(all bool) *gp.PrimSet {
+    pset := gp.CreatePrimSet(2, "x", "y")
     pset.Add( Add, Sub, Mul, Div, Neg)
     if all { pset.Add(V(42), Sqr, Rand, Floor) }
     return pset
 }
 
 // test expressions
-func testExprs(pset *expr.PrimSet) []expr.Expr {
+func testExprs(pset *gp.PrimSet) []gp.Expr {
     x, y := pset.Var(0), pset.Var(1)
-    exprs := []expr.Expr{
-        expr.Expr{ Add, V(9), V(4) },
-        expr.Expr{ Add, Sqr, x, Sqr, y },
-        expr.Expr{ Div, Mul, Add, V(3), V(4), Sub, V(9), V(6), V(2) },
-        expr.Expr{ Div, Add, V(1), Neg, V(1), V(0) },
-        expr.Expr{ Floor, Mul, V(10), Rand },
+    exprs := []gp.Expr{
+        gp.Expr{ Add, V(9), V(4) },
+        gp.Expr{ Add, Sqr, x, Sqr, y },
+        gp.Expr{ Div, Mul, Add, V(3), V(4), Sub, V(9), V(6), V(2) },
+        gp.Expr{ Div, Add, V(1), Neg, V(1), V(0) },
+        gp.Expr{ Floor, Mul, V(10), Rand },
     }
     return exprs
 }
@@ -65,7 +64,7 @@ func TestEval(t *testing.T) {
     expect := []V{13, 25, 10.5, 0, 6}
     rand.Seed(1)
     for i, expect := range expect {
-        val := exprs[i].Eval([]expr.Value{V(3), V(4)})
+        val := exprs[i].Eval([]gp.Value{V(3), V(4)})
         t.Log(exprs[i], "(3,4) ", exprs[i].Format(), " => ", val)
     	if val != expect { t.Errorf("Eval(%s) = %f", exprs[i], val) }
     }
@@ -79,7 +78,7 @@ func TestGenerate(t *testing.T) {
     gp.SetSeed(0)
     for i:=0; i<10; i++ {
         ind := gen.Generate(pset)
-        res := ind.Code.Eval([]expr.Value{V(6), V(7)})
+        res := ind.Code.Eval([]gp.Value{V(6), V(7)})
         t.Log(ind.Code, ind.Code.Format(), "(6,7) =>", res)
     }
 }
@@ -93,15 +92,15 @@ func TestEphemeral(t *testing.T) {
     gp.SetSeed(2)
     ind := gen.Generate(pset)
     t.Log(ind.Code, ind.Code.Format())
-    val := ind.Code.Eval([]expr.Value{V(6), V(7)})
+    val := ind.Code.Eval([]gp.Value{V(6), V(7)})
     t.Log("evals to", val, "for x=6 y=7")
     if val != V(16) { t.Errorf("Eval(%s) = %f", ind.Code, val) }
 }
 
 // test mutation
-type genProxy struct { expr expr.Expr }
+type genProxy struct { expr gp.Expr }
 
-func (g genProxy) Generate(pset *expr.PrimSet) *gp.Individual {
+func (g genProxy) Generate(pset *gp.PrimSet) *gp.Individual {
     return &gp.Individual{Code: g.expr}
 }
 

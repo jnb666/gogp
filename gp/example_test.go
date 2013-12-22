@@ -3,18 +3,17 @@ package gp_test
 
 import (
     "fmt"
-    "github.com/jnb666/gogp/expr"
     "github.com/jnb666/gogp/gp"
     . "github.com/jnb666/gogp/num"
 )
 
-type EvalFitness struct { *expr.PrimSet }
+type EvalFitness struct { *gp.PrimSet }
 
 // calc least squares difference and return as normalised fitness from 0->1
-func (e EvalFitness) GetFitness(code expr.Expr) (float64, bool) {
+func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
     diff := 0.0
     for x := -1.0; x <= 1.0; x += 0.1 {
-        val := float64(code.Eval([]expr.Value{V(x)}).(V))
+        val := float64(code.Eval([]gp.Value{V(x)}).(V))
         fun := x*x*x*x + x*x*x + x*x + x
         diff += (val-fun)*(val-fun)
     }
@@ -24,7 +23,7 @@ func (e EvalFitness) GetFitness(code expr.Expr) (float64, bool) {
 func Example_gp() {
     // create initial population
     gp.SetSeed(1)
-    pset := expr.CreatePrimSet(1, "x")
+    pset := gp.CreatePrimSet(1, "x")
     pset.Add(Add, Sub, Mul, Div, Neg, V(0), V(1))
     eval := EvalFitness{ pset }
     pop, evals := gp.CreatePopulation(500, gp.GenFull(1,3), pset).Evaluate(eval, 1)

@@ -7,7 +7,6 @@ import (
     "math"
     "flag"
     "runtime"
-    "github.com/jnb666/gogp/expr"
     "github.com/jnb666/gogp/gp"
     . "github.com/jnb666/gogp/boolean"
 )
@@ -18,19 +17,19 @@ const TARGET = 0.99
 
 // implements gp.Evaluator
 type EvalFitness struct { 
-    *expr.PrimSet
+    *gp.PrimSet
     size int
-    in  [][]expr.Value
-    out []expr.Value
+    in  [][]gp.Value
+    out []gp.Value
 }
 
 // check each of the 2**PARITY_FANIN cases to get parity at initialisation time
 func Fitness() EvalFitness {
     paritySize := int(math.Pow(2, PARITY_FANIN))
-    input := make([][]expr.Value, paritySize)
-    output := make([]expr.Value, paritySize)
+    input := make([][]gp.Value, paritySize)
+    output := make([]gp.Value, paritySize)
     for i := range output {
-        input[i] = make([]expr.Value, PARITY_FANIN)
+        input[i] = make([]gp.Value, PARITY_FANIN)
         bitstr := fmt.Sprintf(FORMAT, i)
         parity := true
         for j, bit := range bitstr {
@@ -47,7 +46,7 @@ func Fitness() EvalFitness {
 }
 
 // fitness is no. of correct cases / total
-func (e EvalFitness) GetFitness(code expr.Expr) (float64, bool) {
+func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
     correct := 0
     for i, input := range e.in {
         res := code.Eval(input)
@@ -70,7 +69,7 @@ func main() {
 	runtime.GOMAXPROCS(threads)
 
     // create initial generation
-    pset := expr.CreatePrimSet(PARITY_FANIN)
+    pset := gp.CreatePrimSet(PARITY_FANIN)
     pset.Add(And, Or, Xor, Not, True, False)
     generate := gp.GenFull(3, 5)
     eval := Fitness()

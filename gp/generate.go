@@ -4,7 +4,6 @@ import (
 	"math/big"
 	crand "crypto/rand"
     "fmt"
-    "github.com/jnb666/gogp/expr"
 )
 
 // A Population is a slice of individuals. Implementations of the Selection interface are 
@@ -15,7 +14,7 @@ type Population []*Individual
 
 // CreatePopulation creates a new population of popsize individual using the provided generator and
 // primitive set. 
-func CreatePopulation(popsize int, gen Generator, pset *expr.PrimSet) (Population) {
+func CreatePopulation(popsize int, gen Generator, pset *PrimSet) (Population) {
     pop := make(Population, popsize)
     for i := range pop {
         pop[i] = gen.Generate(pset)
@@ -33,13 +32,13 @@ func (pop Population) Print() {
 // A Generator is used to generate new individuals from the provided primitive set, 
 // typically by a random expression generation algorithm. 
 type Generator interface {
-    Generate(*expr.PrimSet) *Individual
+    Generate(*PrimSet) *Individual
 }
 
 // each generator embeds this base structure
 type genBase struct {
     min, max int
-    condition func(height, depth int, pset *expr.PrimSet) bool
+    condition func(height, depth int, pset *PrimSet) bool
 }
 
 // GenFull returns a generator to produce individuals with expression trees such
@@ -47,7 +46,7 @@ type genBase struct {
 func GenFull(min, max int) Generator {
     return genBase{ 
         min, max,
-        func(height, depth int, pset *expr.PrimSet) bool {
+        func(height, depth int, pset *PrimSet) bool {
             return depth == height
         },
     }
@@ -58,7 +57,7 @@ func GenFull(min, max int) Generator {
 func GenGrow(min, max int) Generator {
     return genBase{
         min, max,
-        func(height, depth int, pset *expr.PrimSet) bool {
+        func(height, depth int, pset *PrimSet) bool {
             terms, prims := len(pset.Terminals), len(pset.Primitives)
             terminalRatio := float64(terms) / float64(terms+prims)
             return depth == height || (depth >= min && rand.Float64() < terminalRatio)
@@ -79,7 +78,7 @@ func GenRamped(min, max int) Generator {
     }
 }
 
-func (g genRamped) Generate(pset *expr.PrimSet) *Individual {
+func (g genRamped) Generate(pset *PrimSet) *Individual {
     if rand.Float64() >= 0.5 {
         return g.grow.Generate(pset)
     } else {
@@ -88,8 +87,8 @@ func (g genRamped) Generate(pset *expr.PrimSet) *Individual {
 }
 
 // core logic which implements the different generator types
-func (g genBase) Generate(pset *expr.PrimSet) *Individual {
-    code := expr.Expr{}
+func (g genBase) Generate(pset *PrimSet) *Individual {
+    code := Expr{}
     height := rand.Intn(1+g.max-g.min) + g.min
     stack := []int{0}
     depth := 0
@@ -97,7 +96,7 @@ func (g genBase) Generate(pset *expr.PrimSet) *Individual {
         depth, stack = stack[len(stack)-1], stack[:len(stack)-1]
         if g.condition(height, depth, pset) {
             op := randomOp(pset.Terminals)
-            if erc,ok := op.(expr.EphemeralConstant); ok {
+            if erc,ok := op.(EphemeralConstant); ok {
                 op = erc.Init()
             }
             code = append(code, op)
@@ -124,7 +123,7 @@ func SetSeed(seed int64) int64 {
     return seed
 }
 
-func randomOp(list []expr.Opcode) expr.Opcode {
+func randomOp(list []Opcode) Opcode {
     return list[rand.Intn(len(list))]
 }
 

@@ -1,21 +1,18 @@
 package gp
-import (
-    "fmt"
-    "github.com/jnb666/gogp/expr"
-)
+import "fmt"
 
 // An Evaluator is provided by the implementation to calculate the fitness of an individual.
 // The fitness should be a normalised fitness value, i.e. a number in the range 0 to 1 
 // where 0 is the worst possible and 1 represents a perfect solution to the problem.
 type Evaluator interface {
-    GetFitness(code expr.Expr) (fit float64, ok bool)
+    GetFitness(code Expr) (fit float64, ok bool)
 }
 
 // An Individual element of the population has a code expression which represents the genome 
 // and a fitness value as calculated by the implementation of the Evaluator interface.
 // Methods are provided to apply generic operations to individuals via the Variator interface.
 type Individual struct {
-    Code  expr.Expr
+    Code  Expr
     Fitness  float64
     FitnessValid bool
     depth int
@@ -57,7 +54,7 @@ func (pop Population) Evaluate(eval Evaluator, threads int) (Population, int) {
 }
 
 // Create constructor produces a new individual with copy of given code tree.
-func Create(code expr.Expr) *Individual {
+func Create(code Expr) *Individual {
     return &Individual{ Code:code.Clone() }
 }
 
@@ -93,11 +90,6 @@ func (ind *Individual) Depth() int {
         ind.depth = ind.Code.Depth()
     }
     return ind.depth
-}
-
-// Equals compares two individuals to see if they have the same code value.
-func Equals(ind1, ind2 *Individual) bool {
-    return ind1.Code.Format() == ind2.Code.Format()
 }
 
 

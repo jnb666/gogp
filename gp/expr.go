@@ -1,5 +1,4 @@
-// The expr package contains code for parsing the expression trees used in gogp.
-package expr
+package gp
 import (
     "strings"
     "math/rand"

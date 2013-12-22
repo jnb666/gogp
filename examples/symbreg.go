@@ -13,7 +13,6 @@ import (
     "runtime"
     "runtime/pprof"
     "math/rand"
-    "github.com/jnb666/gogp/expr"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/num"
 )
@@ -26,6 +25,7 @@ type Config struct {
     PopSize int
     TournamentSize int
     DepthLimit int
+    SizeLimit int
     CrossoverProb float64
     MutateProb float64
     ERCmin, ERCmax int
@@ -45,15 +45,15 @@ func ercGen(start, end int) func()num.V {
 
 // implement the evaluator interface to get fitness
 type EvalFitness struct { 
-    *expr.PrimSet 
+    *gp.PrimSet 
     trainSet []Point
 }
 
 // calc least squares difference and return as normalised fitness from 0->1
-func (e EvalFitness) GetFitness(code expr.Expr) (float64, bool) {
+func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
     diff := 0.0
     for _, r := range e.trainSet {
-        val := float64(code.Eval([]expr.Value{num.V(r[0])}).(num.V))
+        val := float64(code.Eval([]gp.Value{num.V(r[0])}).(num.V))
         diff += (val-r[1])*(val-r[1])
     }
     return 1.0/(1.0+diff), true
@@ -69,7 +69,7 @@ func main() {
 	runtime.GOMAXPROCS(args.Threads)
 
     // create initial population
-    pset := expr.CreatePrimSet(1, "x")
+    pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
     pset.Add(num.Ephemeral("ERC", ercGen(args.ERCmin, args.ERCmax)))
     generate := gp.GenRamped(1, 3)
@@ -84,6 +84,11 @@ func main() {
     crossover := gp.CxOnePoint()
     if args.DepthLimit > 0 {
         limit := gp.DepthLimit(args.DepthLimit)
+        mutate.AddDecorator(limit)
+        crossover.AddDecorator(limit)
+    }
+    if args.SizeLimit > 0 {
+        limit := gp.SizeLimit(args.SizeLimit)
         mutate.AddDecorator(limit)
         crossover.AddDecorator(limit)
     }
@@ -122,6 +127,7 @@ func getArgs() (args *Config, profile string) {
 	flag.IntVar(&args.Generations, "gens", 40, "maximum no. of generations")
 	flag.IntVar(&args.PopSize, "popsize", 500, "population size")
 	flag.IntVar(&args.TournamentSize, "tournsize", 5, "tournament size")
+	flag.IntVar(&args.SizeLimit, "size", 0, "maximum tree size - zero for none")
 	flag.IntVar(&args.DepthLimit, "depth", 0, "maximum tree depth - zero for none")
 	flag.Float64Var(&args.CrossoverProb, "cxprob", 0.5, "crossover probability")
 	flag.Float64Var(&args.MutateProb, "mutprob", 0.2, "mutation probability")
