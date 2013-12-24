@@ -13,6 +13,7 @@ import (
     "runtime/pprof"
     "math/rand"
     "github.com/jnb666/gogp/gp"
+    "github.com/jnb666/gogp/stats"
     "github.com/jnb666/gogp/num"
 )
 
@@ -46,20 +47,21 @@ func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
 }
 
 // returns function to log stats for each generation
-func statsLogger(maxGens int, targetFitness float64) func(*gp.Stats) bool {
+func statsLogger(maxGens int, targetFitness float64) func(gp.Population, int, int) bool {
     var best = gp.Individual{}
-    return func(stats *gp.Stats) bool {
-        fmt.Println(stats)
+    return func(pop gp.Population, gen, evals int) bool {
+        s := stats.Create(pop, gen, evals)
+        fmt.Println(s)
         // print best if fitness is improved
-        if stats.Best.Fitness > best.Fitness {
-            best = *stats.Best
+        if s.Best.Fitness > best.Fitness {
+            best = *s.Best
             fmt.Println(best)
         }
-        if stats.Fitness.Max >= targetFitness {
+        if s.Fit.Max >= targetFitness {
             fmt.Println("** SUCCESS **")
             return true
         }
-        return stats.Generation > maxGens
+        return s.Gen > maxGens
     }
 }
 

@@ -8,7 +8,8 @@ import (
     "flag"
     "runtime"
     "github.com/jnb666/gogp/gp"
-    . "github.com/jnb666/gogp/boolean"
+    "github.com/jnb666/gogp/stats"
+    "github.com/jnb666/gogp/boolean"
 )
 
 const PARITY_FANIN = 6
@@ -33,13 +34,13 @@ func Fitness() EvalFitness {
         parity := true
         for j, bit := range bitstr {
             if bit == '1' {
-                input[i][j] = True
+                input[i][j] = boolean.True
                 parity = !parity
             } else {
-                input[i][j] = False
+                input[i][j] = boolean.False
             }
         }
-        output[i] = V(parity)
+        output[i] = boolean.V(parity)
     }
     return EvalFitness{ size:paritySize, in:input, out:output }
 }
@@ -69,26 +70,26 @@ func main() {
 
     // create initial generation
     pset := gp.CreatePrimSet(PARITY_FANIN)
-    pset.Add(And, Or, Xor, Not, True, False)
+    pset.Add(boolean.And, boolean.Or, boolean.Xor, boolean.Not, boolean.True, boolean.False)
     generate := gp.GenFull(pset, 3, 5)
     eval := Fitness()
     pop, evals := gp.CreatePopulation(popsize, generate).Evaluate(eval, threads)
-    stats := gp.GetStats(pop, 0, evals)
-    fmt.Println(stats)
+    s := stats.Create(pop, 0, evals)
+    fmt.Println(s)
 
     // loop till reach target fitness or exceed no. of generations
     tournament := gp.Tournament(3)
     mutate := gp.MutUniform(gp.GenGrow(pset, 0, 2))
     crossover := gp.CxOnePoint()
     for gen := 1; gen <= generations; gen++ {
-        if stats.Fitness.Max >= TARGET {
+        if s.Fit.Max >= TARGET {
             fmt.Println("** SUCCESS **")
             break
         }
         offspring := tournament.Select(pop, popsize)
         pop, evals = gp.VarAnd(offspring, crossover, mutate, 0.5, 0.2).Evaluate(eval, threads)
-        stats = gp.GetStats(pop, gen, evals)
-        fmt.Println(stats)
+        s = stats.Create(pop, gen, evals)
+        fmt.Println(s)
     }
     fmt.Println(pop.Best())
 }

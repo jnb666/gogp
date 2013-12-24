@@ -5,6 +5,7 @@ import (
     "fmt"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/num"
+    "github.com/jnb666/gogp/stats"
 )
 
 // calc least squares difference and return as normalised fitness from 0->1
@@ -19,9 +20,10 @@ func getFitness(code gp.Expr) (float64, bool) {
 }
 
 // callback for each generation, returns true to exit the run
-func logStats(s *gp.Stats) bool {
+func logStats(pop gp.Population, gen, evals int) bool {
+    s := stats.Create(pop, gen, evals)
     fmt.Println(s)
-    return s.Generation > 40 || s.Best.Fitness >= 1
+    return s.Gen > 40 || s.Best.Fitness >= 1
 }
 
 func ExampleModel() {
@@ -44,7 +46,7 @@ func ExampleModel() {
     problem.Run(logStats)
     /* Output:
 set random seed: 1
-gen      evals    fitMax   fitAvg   fitStd   sizeAvg  sizeMax  depthAvg depthMax
+Gen      Evals    FitMax   FitAvg   FitStd   SizeAvg  SizeMax  DepthAvg DepthMax
 0        500      0.12     0.025    0.014    6.85     15       1.96     3
 1        299      0.33     0.0344   0.0203   6.33     27       1.93     6
 2        286      0.663    0.0469   0.0448   6.26     27       1.9      7

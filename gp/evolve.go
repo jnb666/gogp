@@ -34,7 +34,6 @@ type Model struct {
     MutateProb, CrossoverProb float64
     Mutate, Crossover Variation
     Fitness func(Expr) (float64, bool)
-    stats []*Stats
 }
 
 // The GetFitness method is provided so that the Model type implements the Evaluator interface
@@ -51,17 +50,15 @@ func (m *Model) AddDecorator(decor Decorator) {
 // The Run method first creates a new population and iteratively evolves it
 // using the VarAnd algorithm. The callback function is called for each generation,
 // if it returns a true value then the evolution process terminates.
-func (m *Model) Run(callback func(*Stats) bool) {
+func (m *Model) Run(callback func(pop Population, gen, evals int) bool) {
     gen, evals := 0, 0
     pop := CreatePopulation(m.PopSize, m.Generator)
     pop, evals = pop.Evaluate(m, m.Threads)
-    m.stats = append([]*Stats{}, GetStats(pop, gen, evals))
-    for !callback(m.stats[gen]) {
+    for !callback(pop, gen, evals) {
         gen++
         offspring := m.Offspring.Select(pop, m.PopSize)
         pop = VarAnd(offspring, m.Crossover, m.Mutate, m.CrossoverProb, m.MutateProb)
         pop, evals = pop.Evaluate(m, m.Threads)
-        m.stats = append(m.stats, GetStats(pop, gen, evals))
     }
 }
 
