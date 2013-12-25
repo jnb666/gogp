@@ -46,23 +46,20 @@ type PlotData struct {
     Data  [][2]float64  `json:"data"`
 }
 
-// GetStats calculates stats on fitness, size and depth for the given population
+// Create calculates stats on fitness, size and depth for the given population and returns a new 
+// Stats struct
 func Create(pop gp.Population, gen, evals int) *Stats {
-    s := &Stats{ Gen:gen, Evals:evals, Fit:NewStatsData(), Size:NewStatsData(), Depth:NewStatsData() }
-    updateStats(pop, s.Fit, func(ind *gp.Individual)float64 { return ind.Fitness })
-    updateStats(pop, s.Size, func(ind *gp.Individual)float64 { return float64(ind.Size()) })
-    updateStats(pop, s.Depth, func(ind *gp.Individual)float64 { return float64(ind.Depth()) })
+    s := &Stats{ Gen:gen, Evals:evals }
+    s.Fit = updateStats(pop, func(ind *gp.Individual)float64 { return ind.Fitness })
+    s.Size = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Size()) })
+    s.Depth = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Depth()) })
     s.Best = pop.Best().Clone()
     return s
 }
 
-// NewStatsData initialises a new StatsData struct
-func NewStatsData() *StatsData {
-    return &StatsData{ Min: 1e99, Max: 1e-99 }
-}
-
 // update stats data, calc running mean and variance
-func updateStats(pop gp.Population, d *StatsData, getval func(*gp.Individual)float64) {
+func updateStats(pop gp.Population, getval func(*gp.Individual)float64) *StatsData {
+    d := StatsData{ Min: 1e99, Max: 1e-99 }
     var oldM, oldS float64
     for i, ind := range pop {
         val := getval(ind)
@@ -79,6 +76,7 @@ func updateStats(pop gp.Population, d *StatsData, getval func(*gp.Individual)flo
     if len(pop) > 1 {
         d.Std = math.Sqrt(d.Std / float64(len(pop)-1))
     }
+    return &d
 }
 
 // get struct field and desc tag by reflection
