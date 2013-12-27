@@ -42,24 +42,4 @@ func TestStats(t *testing.T) {
     }
 }
 
-var jsonExp = `{"label":"maximum","data":[[0,15],[1,15],[2,15],[3,15],[4,15]]}`
-
-// test json data for plotting
-func TestJson(t *testing.T) {
-    gp.SetSeed(1)
-    history := make(StatsHistory, 5)
-    for i := range history {
-        history[i] = getStats(t, i)
-    }
-    data, err := history.GetJSON("Size.Max")
-    if err != nil { t.Error(err) }
-    t.Log(string(data))
-    if string(data) != jsonExp {
-        t.Error("json data looks wrong! Expected\n", jsonExp)
-    }
-    data, err = history.GetJSON("Foo")
-    if fmt.Sprint(err) != "Stats field Foo is not valid" { 
-        t.Error("expected error for missing field")
-    }
-}
 

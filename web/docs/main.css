@@ -1,0 +1,67 @@
+/* begin some basic styling here */
+body {
+	background: #FFF;
+	color: #000;
+	font: normal normal 11pt Verdana, Geneva, Arial, Helvetica, sans-serif;
+	margin: 10px;
+	padding: 0
+}
+table, td, a {
+	color: #000;
+	font: normal normal 9pt Verdana, Geneva, Arial, Helvetica, sans-serif
+}
+
+/* containers */
+.plot-container {
+    width: 500px;
+    height: 300px;
+    float: left;
+}
+.form-container {
+    float: left;
+    border: 10px solid #FFF;
+}
+.stats-container {
+	clear: both;
+    border: 16px solid #FFF;
+}
+
+/* scrollable table formatting */
+.tableContainer {
+	clear: both;
+	border: 1px solid #000;
+	height: 285px;
+	overflow: hidden;
+	width: 736px;
+}
+div.tableContainer table {
+	float: left;
+	width: 736px;
+}
+thead.fixedHeader tr {
+	display: block;
+}
+thead.fixedHeader th {
+	background: #444;
+    color: #FFF;
+	padding: 2px 3px;
+	text-align: left;
+	width: 80px;
+}
+thead.fixedHeader th.rightHeader {
+	width: 96px;
+}
+tbody.scrollContent {
+	display: block;
+	height: 262px;
+	overflow: auto;
+	width: 100%;
+}
+tbody.scrollContent td {
+	width: 80px;
+	padding: 2px 3px 3px 4px;
+}
+tbody.scrollContent tr.alt td {
+	background: #DDD;
+}
+

@@ -5,7 +5,6 @@ import (
     "math"
     "reflect"
     "strings"
-    "encoding/json"
     "github.com/jnb666/gogp/gp"
 )
 
@@ -14,8 +13,9 @@ import (
 var (
     LogColumn = []string{"Gen", "Evals", "Fit.Max", "Fit.Avg", "Fit.Std", 
                          "Size.Avg", "Size.Max", "Depth.Avg", "Depth.Max"}
-    LogColumnFmt = []string{"d", "d", ".3g", ".3g", ".3g", ".3g", ".3g", ".3g", ".3g"}
-    LogColumnWidth = 8
+    LogFormatFloat = "%.3g"
+    LogFormatInt   = "%d"
+    LogColumnFormat = "%-8s"
 )
 
 // Stats structure holds the statistics for the give Population.
@@ -40,10 +40,14 @@ type StatsData struct {
 // StatsHistory slice stores all the stats for a given run
 type StatsHistory []*Stats
 
-// PlotData struct is used for encoding the StatsHistory to JSON e.g. for plotting
-type PlotData struct {
+// Plot struct is used for encoding the StatsHistory to JSON for plotting using flot
+type Plot struct {
     Label string        `json:"label"`
-    Data  [][2]float64  `json:"data"`
+    Lines struct {
+        Fill bool       `json:"fill"`
+        LineWidth int   `json:"lineWidth"`
+    }                   `json:"lines"`
+    Data  [][3]float64  `json:"data"`
 }
 
 // Create calculates stats on fitness, size and depth for the given population and returns a new 
@@ -114,29 +118,58 @@ func (s *Stats) Get(name string) (val interface{}, tag string, err error) {
 
 // The Get method returns the history data for the named field in a suitable format for plotting
 // Returns FieldNotFound error if name is not a valid field
-func (h StatsHistory) Get(name string) (p PlotData, err error) {
+func (h StatsHistory) Get(name string) (lines []Plot, err error) {
     var val interface{}
-    p.Data  = make([][2]float64, len(h))
-    p.Label = name
-    for i, stats := range h {
-        if val, p.Label, err = stats.Get(name); err != nil {
-            return
-        }
-        if fval, ok := val.(float64); ok { 
-            p.Data[i] = [2]float64{ float64(i), fval }
+    lines = make([]Plot, 3)
+    for i, field := range []string{"Max", "Avg", "Std"} {
+        lines[i].Data = make([][3]float64, len(h))
+        if field == "Std" {
+            lines[i].Lines.Fill = true
+            lines[i].Lines.LineWidth = 0
         } else {
-            err = fmt.Errorf("Stats field %s could not be converted to float", name)
+            lines[i].Lines.LineWidth = 2
+        }
+        for j, stats := range h {
+            if val, lines[i].Label, err = stats.Get(name + "." + field); err != nil {
+                return
+            }
+            if y, ok := val.(float64); ok {
+                if field == "Std" {
+                    avg := lines[i-1].Data[j][1]
+                    lines[i].Data[j] = [3]float64{ float64(j), avg-y, avg+y }
+                } else {
+                    lines[i].Data[j] = [3]float64{ float64(j), y, 0 }
+                }
+            } else {
+                err = fmt.Errorf("Stats field %s could not be converted to float", name)
+            }
         }
     }
     return
 }
 
-// The GetJSON method calls Get to retrieve the data, then encodes in JSON format for plotting.
-// name provided should be the name of a StatsData struct (Fit / Size / Depth)
-func (h StatsHistory) GetJSON(name string) ([]byte, error) {
-    data, err := h.Get(name)
-    if err != nil { return nil, err }
-    return json.Marshal(data)
+// LogHeaders returns header names for each of the LogColumn fields
+func LogHeaders() []string {
+    cols := make([]string, len(LogColumn))
+    for i, col := range LogColumn {
+        cols[i] = strings.Replace(col, ".", "", -1)
+    }
+    return cols
+}
+
+// LogValues returns stats data for each of LogColumn fields
+func (s *Stats) LogValues() []string {
+    cols := make([]string, len(LogColumn))
+    for i, col := range LogColumn {
+        val, _,  _ := s.Get(col)
+        switch val.(type) {
+        case float64:
+            cols[i] = fmt.Sprintf(LogFormatFloat, val)
+        case int:
+            cols[i] = fmt.Sprintf(LogFormatInt, val)
+        }
+    }
+    return cols
 }
 
 // String method returns formatted stats data for logging
@@ -144,17 +177,13 @@ func (s *Stats) String() string {
     cols := make([]string, len(LogColumn))
     text := ""
     if s.Gen == 0 {
-        format := fmt.Sprintf("%%-%ds", LogColumnWidth) 
-        for i, col := range LogColumn {
-            col = strings.Replace(col, ".", "", -1)
-            cols[i] = fmt.Sprintf(format, col)
+        for i, col := range LogHeaders() {
+            cols[i] = fmt.Sprintf(LogColumnFormat, col)
         }
         text += strings.TrimSpace(strings.Join(cols, " ")) + "\n"
     }
-    for i, col := range LogColumn {
-        format := fmt.Sprintf("%%-%d%s", LogColumnWidth, LogColumnFmt[i])
-        val, _, _ := s.Get(col)
-        cols[i] = fmt.Sprintf(format, val)
+    for i, col := range s.LogValues() {
+        cols[i] = fmt.Sprintf(LogColumnFormat, col)
     }
     // testing package does not like trailing space in examples!
     text += strings.TrimSpace(strings.Join(cols, " "))
