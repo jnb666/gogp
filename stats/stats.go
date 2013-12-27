@@ -23,10 +23,10 @@ var (
 type Stats struct {
     Gen     int             `desc:"generation"`
     Evals   int             `desc:"no. of evals"`
-    Best    *gp.Individual  `desc:"best individual"`
-    Fit     *StatsData      `desc:"fitness"`
-    Size    *StatsData      `desc:"size"`
-    Depth   *StatsData      `desc:"depth"`
+    Fit     StatsData       `desc:"fitness"`
+    Size    StatsData       `desc:"size"`
+    Depth   StatsData       `desc:"depth"`
+    Done    bool
 }
 
 // Stats data holds the values for a single metric.
@@ -35,6 +35,7 @@ type StatsData struct {
     Max  float64    `desc:"maximum"`
     Avg  float64    `desc:"mean"`
     Std  float64    `desc:"std deviation"`
+    MinIndex, MaxIndex int
 }
 
 // StatsHistory slice stores all the stats for a given run
@@ -57,18 +58,21 @@ func Create(pop gp.Population, gen, evals int) *Stats {
     s.Fit = updateStats(pop, func(ind *gp.Individual)float64 { return ind.Fitness })
     s.Size = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Size()) })
     s.Depth = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Depth()) })
-    s.Best = pop.Best().Clone()
     return s
 }
 
 // update stats data, calc running mean and variance
-func updateStats(pop gp.Population, getval func(*gp.Individual)float64) *StatsData {
+func updateStats(pop gp.Population, getval func(*gp.Individual)float64) StatsData {
     d := StatsData{ Min: 1e99, Max: 1e-99 }
     var oldM, oldS float64
     for i, ind := range pop {
         val := getval(ind)
-        if val > d.Max { d.Max = val }
-        if val < d.Min { d.Min = val }
+        if val > d.Max { 
+            d.Max, d.MaxIndex = val, i
+        }
+        if val < d.Min { 
+            d.Min, d.MinIndex = val, i
+        }
         if i == 0 {
             oldM, d.Avg = val, val
         } else {
@@ -80,7 +84,7 @@ func updateStats(pop gp.Population, getval func(*gp.Individual)float64) *StatsDa
     if len(pop) > 1 {
         d.Std = math.Sqrt(d.Std / float64(len(pop)-1))
     }
-    return &d
+    return d
 }
 
 // get struct field and desc tag by reflection
@@ -99,8 +103,8 @@ func getField(struc reflect.Value, name string) (val interface{}, tag string, er
 
 // The Get method returns the data and desc tag for the named StatsData field,
 // or an error if the field does not exist.
-func (d *StatsData) Get(name string) (val interface{}, tag string, err error) {
-    return getField(reflect.ValueOf(d), name)
+func (d StatsData) Get(name string) (val interface{}, tag string, err error) {
+    return getField(reflect.ValueOf(&d), name)
 }
 
 // The Get method returns the data and desc tag for the named field or an error if field does not exist. 
@@ -111,7 +115,7 @@ func (s *Stats) Get(name string) (val interface{}, tag string, err error) {
         return
     }
     if len(names) > 1 {
-        val, tag, err = val.(*StatsData).Get(names[1])
+        val, tag, err = val.(StatsData).Get(names[1])
     }
     return
 }

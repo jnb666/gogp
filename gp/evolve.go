@@ -28,7 +28,7 @@ type Decorator interface {
 // The Model type encapsulates a complete problem
 type Model struct {
     PrimitiveSet *PrimSet
-    PopSize, Threads int
+    PopSize, Threads, MaxGen int
     Generator Generator
     Offspring Selector
     MutateProb, CrossoverProb float64
@@ -54,7 +54,7 @@ func (m *Model) Run(callback func(pop Population, gen, evals int) bool) {
     gen, evals := 0, 0
     pop := CreatePopulation(m.PopSize, m.Generator)
     pop, evals = pop.Evaluate(m, m.Threads)
-    for !callback(pop, gen, evals) {
+    for !callback(pop, gen, evals) && gen < m.MaxGen {
         gen++
         offspring := m.Offspring.Select(pop, m.PopSize)
         pop = VarAnd(offspring, m.Crossover, m.Mutate, m.CrossoverProb, m.MutateProb)

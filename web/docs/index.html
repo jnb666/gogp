@@ -36,7 +36,7 @@ $(function() {
             $('#stats-grid').prepend(html);
         }
         // update the plot
-        options.xaxis.max = data.MaxGens;
+        options.xaxis.max = data.MaxGen;
         options.yaxis.max = (field == "Fit") ? 1 : null;
         $.plot($("#placeholder"), data.Plots, options);
         // get next generation?

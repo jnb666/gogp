@@ -18,7 +18,7 @@ import (
 )
 
 type Config struct {
-    maxGens, tournSize, maxSize, maxDepth int
+    tournSize, maxSize, maxDepth int
     seed int64
     targetFitness float64
     datafile, profile string
@@ -47,21 +47,21 @@ func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
 }
 
 // returns function to log stats for each generation
-func statsLogger(maxGens int, targetFitness float64) func(gp.Population, int, int) bool {
-    var best = gp.Individual{}
+func statsLogger(targetFitness float64) func(gp.Population, int, int) bool {
+    best := -1
     return func(pop gp.Population, gen, evals int) bool {
         s := stats.Create(pop, gen, evals)
         fmt.Println(s)
         // print best if fitness is improved
-        if s.Best.Fitness > best.Fitness {
-            best = *s.Best
-            fmt.Println(best)
+        if best < 0 || pop[s.Fit.MaxIndex].Fitness > pop[best].Fitness {
+            best = s.Fit.MaxIndex
+            fmt.Println(pop[best])
         }
         if s.Fit.Max >= targetFitness {
             fmt.Println("** SUCCESS **")
             return true
         }
-        return s.Gen > maxGens
+        return false
     }
 }
 
@@ -97,13 +97,13 @@ func main() {
     		defer pprof.StopCPUProfile()
         }
 	}
-    problem.Run(statsLogger(args.maxGens, args.targetFitness))
+    problem.Run(statsLogger(args.targetFitness))
 }
 
 // process cmd line flags and read input file
 func getArgs(m *gp.Model) *Config {
     args := &Config{}  
-	flag.IntVar(&args.maxGens, "gens", 40, "maximum no. of generations")
+	flag.IntVar(&m.MaxGen, "gens", 40, "maximum no. of generations")
 	flag.Float64Var(&args.targetFitness, "target", 0.99, "target fitness")
 	flag.IntVar(&args.tournSize, "tournsize", 5, "tournament size")
 	flag.IntVar(&args.maxSize, "size", 0, "maximum tree size - zero for none")

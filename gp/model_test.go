@@ -23,7 +23,7 @@ func getFitness(code gp.Expr) (float64, bool) {
 func logStats(pop gp.Population, gen, evals int) bool {
     s := stats.Create(pop, gen, evals)
     fmt.Println(s)
-    return s.Gen > 40 || s.Best.Fitness >= 1
+    return pop[s.Fit.MaxIndex].Fitness >= 1
 }
 
 func ExampleModel() {
@@ -34,6 +34,7 @@ func ExampleModel() {
     problem := gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 1, 3),
+        MaxGen: 20,
         PopSize: 500,
         Fitness: getFitness,
         Offspring: gp.Tournament(3),

@@ -1,13 +1,18 @@
 package main
 
 import (
+    "fmt"
     "math"
     "math/rand"
     "runtime"
+    "net"
+    "encoding/gob"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/num"
     "github.com/jnb666/gogp/stats"
 )
+
+var TCPPort = ":5555"
 
 // calc least squares difference and return as normalised fitness from 0->1
 func getFitness(code gp.Expr) (float64, bool) {
@@ -21,7 +26,7 @@ func getFitness(code gp.Expr) (float64, bool) {
 }
 
 // set up problem
-func createModel() (*gp.Model, *Data) {
+func createModel() *gp.Model {
     gp.SetSeed(0)
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
@@ -30,6 +35,7 @@ func createModel() (*gp.Model, *Data) {
     problem := gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenRamped(pset, 1, 3),
+        MaxGen: 20,
         PopSize: 20000,
         Fitness: getFitness,
         Offspring: gp.Tournament(5),
@@ -42,25 +48,31 @@ func createModel() (*gp.Model, *Data) {
     problem.AddDecorator(gp.SizeLimit(500))
 	runtime.GOMAXPROCS(4)
     problem.PrintParams("== GP Symbolic Regression ==")
-
-    history := Data{ 
-        Stats:   stats.StatsHistory{},
-        MaxGens: 40,
-    }
-    return &problem, &history
+    return &problem
 }
 
-// goroutine to run the model - updates history struct
-func runModel(problem *gp.Model, history *Data) {
+// run the model and write stats to socket on each generation
+func main() {
+    fmt.Println("start client");
+    conn, err := net.Dial("tcp", "localhost" + TCPPort)
+    if err != nil {
+        fmt.Println("Connection error", err)
+        return
+    }
+    encoder := gob.NewEncoder(conn)
+    problem := createModel()
+
     problem.Run(
         func(pop gp.Population, gen, evals int) bool {
             s := stats.Create(pop, gen, evals)
-            history.Lock()
-            defer history.Unlock()
-            history.Stats = append(history.Stats, s)
-            history.Done  = (gen >= history.MaxGens || s.Best.Fitness >= 1)
-            return history.Done
+            fmt.Println(s)
+            s.Done = (gen >= problem.MaxGen || s.Fit.Max >= 1)
+            encoder.Encode(s)
+            return s.Done
         })
+
+    conn.Close()
+    fmt.Println("done")
 }
 
 
