@@ -47,13 +47,36 @@ func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
     }
 }
 
-// main GP routine
-func main() {
-    problem := &gp.Model{}
-    args := getArgs(problem)
-    ercMin, ercMax, trainSet := getData(args.datafile)
-    gp.SetSeed(args.seed)
-	runtime.GOMAXPROCS(problem.Threads)
+// function to plot target curve 
+func plotTarget(trainSet []Point) func(gp.Population) stats.Plot {
+    return func(pop gp.Population) stats.Plot {
+        plot := stats.NewPlot("Target", len(trainSet))
+        for i, pt := range trainSet {
+            plot.Data[i][0], plot.Data[i][1] = pt.x, pt.y
+        }
+        return plot
+    }
+}
+
+// function to plot best individual
+func plotBest(trainSet []Point) func(gp.Population) stats.Plot {
+    return func(pop gp.Population) stats.Plot {
+        plot := stats.NewPlot("Best", len(trainSet))
+        code := pop.Best().Code
+        for i, pt := range trainSet {
+            plot.Data[i][0] = pt.x
+            plot.Data[i][1] = float64(code.Eval(num.V(pt.x)).(num.V))
+        }
+        return plot
+    }
+}
+
+// initialise model
+func initModel() (problem *gp.Model, args *Config, trainSet []Point) {
+    var ercMin, ercMax int
+    problem = &gp.Model{}
+    args = getArgs(problem)
+    ercMin, ercMax, trainSet = getData(args.datafile)
 
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
@@ -72,7 +95,11 @@ func main() {
         problem.AddDecorator(gp.SizeLimit(args.maxSize))
     }
     problem.PrintParams("== GP Symbolic Regression for ", args.datafile, "==")
+    return
+}
 
+// setup logger and custom plot
+func initLogger(args *Config, trainSet []Point) gp.Logger {
     logger := &stats.Logger{
         MaxGen: args.maxGen, 
         TargetFitness: args.targetFitness,
@@ -80,11 +107,22 @@ func main() {
         PrintBest: args.verbose,
     }
     if args.plot { 
+        logger.RegisterPlot(plotTarget(trainSet)) 
+        logger.RegisterPlot(plotBest(trainSet))
         if err := logger.Dial(); err != nil {
             fmt.Println("error connecting to server:", err)
-            return
+            os.Exit(1)
         }
     }
+    return logger
+}
+
+// main GP routine
+func main() {
+    problem, args, trainSet := initModel()
+    gp.SetSeed(args.seed)
+	runtime.GOMAXPROCS(problem.Threads)
+    logger := initLogger(args, trainSet)
 	if args.profile != "" {
 		if file, err := os.Create(args.profile); err == nil {
     		fmt.Println("writing CPU profile data to ", args.profile)

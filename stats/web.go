@@ -17,13 +17,16 @@ import (
 // may be read and written by multiple threads so access is synced using a mutex
 type History struct {
     sync.Mutex
-    Stats []*Stats
+    Stats  []*Stats
+    Plots  []Plot
+    MaxGen int
+    Done   bool
 }
 
 // The PlotData struct holds the data structure which is served as JSON by ServeHTTP.
 type PlotData struct {
     Done    bool
-    MaxGen  int
+    Gen, MaxGen  int
     Headers []string
     Stats   [][]string
     Plots   []Plot
@@ -40,6 +43,16 @@ type Plot struct {
     Data  [][3]float64  `json:"data"`
 }
 
+// LogRecord struct is used by the Logger to pass info from the client
+type LogRecord struct {
+    *Stats
+    Plots []Plot
+    MaxGen int
+    Done bool
+}
+
+type plotFunc func(gp.Population) Plot
+
 // Logger implements the gp.Logger interface
 type Logger struct {
     MaxGen int
@@ -48,6 +61,7 @@ type Logger struct {
     PrintBest bool
     bestFit float64
     enc *gob.Encoder
+    plotters []plotFunc
 }
 
 // Dial connects the Logger to the TCP server for web based plotting.
@@ -61,15 +75,30 @@ func (l *Logger) Dial() error {
     return nil
 }
 
+// RegisterPlot sets up a new callback to generate and send a plot back to the server.
+func (l *Logger) RegisterPlot(plotter func(gp.Population) Plot) {
+    if l.plotters == nil {
+        l.plotters = []plotFunc{}
+    }
+    l.plotters = append(l.plotters, plotter)
+}
+
 // Log logs a messages to stdout if PrintStats or PrintBest are set. 
 // If Dial was called successfully then stats are sent via TCP to the server.
 func (l *Logger) Log(pop gp.Population, gen, evals int) bool {
     s := Create(pop, gen, evals)
-    s.MaxGen = l.MaxGen
-    s.Done = gen >= l.MaxGen || s.Fit.Max >= l.TargetFitness
+    done := gen >= l.MaxGen || s.Fit.Max >= l.TargetFitness
+    // gob encode and send data over TCP socket
     if l.enc != nil {
-        l.enc.Encode(s)
+        rec := LogRecord{ Stats:s, MaxGen:l.MaxGen, Done:done, Plots: []Plot{}}
+        if l.plotters != nil {
+            for _, plot := range l.plotters {
+                rec.Plots = append(rec.Plots, plot(pop))
+            }
+        }
+        l.enc.Encode(rec)
     }
+    // print stats
     if l.PrintStats {
         fmt.Println(s)
         if s.Fit.Max >= l.TargetFitness {
@@ -82,31 +111,37 @@ func (l *Logger) Log(pop gp.Population, gen, evals int) bool {
             fmt.Println(s.Best)
         }
     }
-    return s.Done
+    return done
 }
 
 // NewHistory initialises a new History struct
 func NewHistory() *History {
-    return &History{ Stats: []*Stats{} }
+    return &History{ Stats: []*Stats{}, Plots: []Plot{} }
 }
 
 // Reset method clears the history
 func (h *History) Reset() {
     h.Lock()
+    defer h.Unlock()
     h.Stats = []*Stats{}
-    h.Unlock()
+    h.Done = false
+    h.MaxGen = 0
+    h.Plots = []Plot{}
 }
 
-// Append method adds a new stats record to the history
-func (h *History) Append(s *Stats) {
+// Append method adds a new log record to the history
+func (h *History) Append(rec *LogRecord) {
     h.Lock()
-    h.Stats = append(h.Stats, s)
-    h.Unlock()
+    defer h.Unlock()
+    h.Stats = append(h.Stats, rec.Stats)
+    h.MaxGen = rec.MaxGen
+    h.Done = rec.Done
+    h.Plots = rec.Plots
 }
 
-// GetPlots returns the history data for the named field in a suitable format for plotting.
+// Get the history data for the named field in a suitable format for plotting.
 // Returns an error if name is not a valid field. Standard deviation is shown as a range.
-func GetPlots(h []*Stats, name string) (lines []Plot, err error) {
+func getStatsPlots(h []*Stats, name string) (lines []Plot, err error) {
     var val interface{}
     lines = make([]Plot, 3)
     for i, field := range []string{"Max", "Avg", "Std"} {
@@ -140,29 +175,34 @@ func GetPlots(h []*Stats, name string) (lines []Plot, err error) {
 
 // GetPlotData creates a new PlotData struct from the history data.
 // The plots are for the metric given in the field parameter.
-// Stats are included from the generation given by the from parameter.
-func GetPlotData(history *History, field string, from int) (data PlotData, err error) {
+// Stats are included from the generation given by the firstGen parameter.
+func (h *History) GetPlotData(field string, firstGen int) (data PlotData, err error) {
     data.Stats = [][]string{}
     data.Headers = LogHeaders()
-    history.Lock()
-    defer history.Unlock()
-    last := len(history.Stats)-1
+    h.Lock()
+    defer h.Unlock()
+    last := len(h.Stats)-1
+    data.Done = h.Done
+    data.Gen = last
+    data.MaxGen = h.MaxGen
     if last < 0 {
         data.Plots = []Plot{}
         return
     }
-    // get stats
-    if from < len(history.Stats) {
-        for _, s := range history.Stats[from:] {
+    // get the stats
+    if firstGen <= last {
+        for _, s := range h.Stats[firstGen:] {
             data.Stats = append(data.Stats, s.LogValues())
         }
     }
-    // get per run values
-    data.Done = history.Stats[last].Done
-    data.MaxGen = history.Stats[last].MaxGen
-    data.Best = history.Stats[last].Best
-    // get plots
-    data.Plots, err = GetPlots(history.Stats, field)
+    data.Best = h.Stats[last].Best
+    if field == "Plot" {
+        // custom plots
+        data.Plots = h.Plots
+    } else {
+        // stats metric plots (Fit, Size etc.)
+        data.Plots, err = getStatsPlots(h.Stats, field)
+    }
     return
 }
 
@@ -172,13 +212,13 @@ func (h *History) handleConn(conn net.Conn) {
     dec := gob.NewDecoder(conn)
     h.Reset()
     for {
-        s := &Stats{}
-        if err := dec.Decode(s); err != nil {
+        rec := &LogRecord{}
+        if err := dec.Decode(rec); err != nil {
             log.Println("error in gob Decode", err)
             break
         }
-        h.Append(s)
-        if s.Done { break }
+        h.Append(rec)
+        if rec.Done { break }
     }
     log.Println("end of run")
 }
@@ -214,8 +254,8 @@ func (h *History) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         return
     }
     // extract the data
-    from, _ := strconv.Atoi(fields[2])
-    data, err := GetPlotData(h, fields[1], from)
+    firstGen, _ := strconv.Atoi(fields[2])
+    data, err := h.GetPlotData(fields[1], firstGen)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
@@ -229,5 +269,14 @@ func (h *History) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
     w.Write(jsonData)
+}
+
+// NewPlot returns a new line Plot struct with given label and size
+func NewPlot(label string, size int) Plot {
+    p := Plot{}
+    p.Label = label
+    p.Lines.LineWidth = 2
+    p.Data = make([][3]float64, size)
+    return p
 }
 

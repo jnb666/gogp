@@ -12,14 +12,14 @@ $(function() {
     var wait = 1000;
     var options = {
         legend: { position: "nw" },
-        xaxis:  { min: 0 },
-        yaxis:  { min: 0 },
+        xaxis:  { },
+        yaxis:  { },
         colors: [ "#ff0000", "#0000ff", "#b0b0ff" ]
     };
 
     // process new data
     function doUpdate(data, field) {
-        generation = data.Plots[0].data.length;
+        generation = data.Gen + 1;
         // update the stats
         for (var i = 0; i < data.Stats.length; i += 1) {
             var row = data.Stats[i];
@@ -30,7 +30,9 @@ $(function() {
         // update best individual
         $("#best").html(data.Best);
         // update the plot
-        if (data.MaxGen > 0) { options.xaxis.max = data.MaxGen }
+        options.xaxis.min = (field != "Plot") ? 0 : null;
+        options.xaxis.max = (data.MaxGen > 0 && field != "Plot") ? data.MaxGen : null;
+        options.yaxis.min = options.xaxis.min; 
         options.yaxis.max = (field == "Fit") ? 1 : null;
         $.plot($("#placeholder"), data.Plots, options);
     }
@@ -86,6 +88,7 @@ $(function() {
     <input type="radio" name="dataset" value="Fit" checked> fitness<br>
     <input type="radio" name="dataset" value="Size"> size<br>
     <input type="radio" name="dataset" value="Depth"> depth<br>
+    <input type="radio" name="dataset" value="Plot"> custom<br>
   </form>
   <br>
   <button id="restart">update</button>

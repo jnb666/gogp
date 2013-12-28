@@ -22,10 +22,9 @@ var (
 
 // The Stats structure holds the statistics for the give Population.
 type Stats struct {
-    Gen, Evals, MaxGen int
+    Gen, Evals int
     Fit, Size, Depth StatsData
     Best string
-    Done bool
 }
 
 // The StatsData struct holds the values for a single metric.
