@@ -18,12 +18,19 @@ table, td, a {
     float: left;
 }
 .form-container {
+    width: 240px;
+    height: 280px;
     float: left;
     border: 10px solid #FFF;
 }
 .stats-container {
 	clear: both;
     border: 16px solid #FFF;
+}
+.best-container {
+    overflow-y: auto;
+    font-size: 9pt;
+	clear: right;
 }
 
 /* scrollable table formatting */

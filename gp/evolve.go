@@ -28,12 +28,17 @@ type Decorator interface {
 // The Model type encapsulates a complete problem
 type Model struct {
     PrimitiveSet *PrimSet
-    PopSize, Threads, MaxGen int
+    PopSize, Threads int
     Generator Generator
     Offspring Selector
     MutateProb, CrossoverProb float64
     Mutate, Crossover Variation
     Fitness func(Expr) (float64, bool)
+}
+
+// The Logger interface is used for logging stats on each generation of a run
+type Logger interface {
+    Log(pop Population, gen, evals int) bool
 }
 
 // The GetFitness method is provided so that the Model type implements the Evaluator interface
@@ -48,13 +53,13 @@ func (m *Model) AddDecorator(decor Decorator) {
 }
 
 // The Run method first creates a new population and iteratively evolves it
-// using the VarAnd algorithm. The callback function is called for each generation,
-// if it returns a true value then the evolution process terminates.
-func (m *Model) Run(callback func(pop Population, gen, evals int) bool) {
+// using the VarAnd algorithm. The Log method is called on the Logger for each generation. 
+// If it returns true then the run terminates.
+func (m *Model) Run(l Logger) {
     gen, evals := 0, 0
     pop := CreatePopulation(m.PopSize, m.Generator)
     pop, evals = pop.Evaluate(m, m.Threads)
-    for !callback(pop, gen, evals) && gen < m.MaxGen {
+    for !l.Log(pop, gen, evals) {
         gen++
         offspring := m.Offspring.Select(pop, m.PopSize)
         pop = VarAnd(offspring, m.Crossover, m.Mutate, m.CrossoverProb, m.MutateProb)
@@ -63,13 +68,12 @@ func (m *Model) Run(callback func(pop Population, gen, evals int) bool) {
 }
 
 // PrintParams prints the config parameters for this run to stdout
-func (m *Model) PrintParams(title string) {
-    fmt.Println(title)
+func (m *Model) PrintParams(title ...interface{}) {
+    fmt.Println(title...)
 	s := reflect.ValueOf(m).Elem()
     for i:=0; i<s.NumField()-1; i++ {
 		fmt.Printf("%14s = %v\n", s.Type().Field(i).Name, s.Field(i).Interface())
     }
-    fmt.Println()
 }
 
 // VarAnd is a simple algorith to apply crossover and mutation variations with given probabilities.

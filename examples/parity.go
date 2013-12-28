@@ -16,15 +16,8 @@ const PARITY_FANIN = 6
 const FORMAT = "%06b"
 const TARGET = 0.99
 
-// implements gp.Evaluator
-type EvalFitness struct { 
-    size int
-    in  [][]gp.Value
-    out []gp.Value
-}
-
 // check each of the 2**PARITY_FANIN cases to get parity at initialisation time
-func Fitness() EvalFitness {
+func getFitnessFunc() func(gp.Expr) (float64,bool) {
     paritySize := int(math.Pow(2, PARITY_FANIN))
     input := make([][]gp.Value, paritySize)
     output := make([]gp.Value, paritySize)
@@ -42,55 +35,65 @@ func Fitness() EvalFitness {
         }
         output[i] = boolean.V(parity)
     }
-    return EvalFitness{ size:paritySize, in:input, out:output }
-}
-
-// fitness is no. of correct cases / total
-func (e EvalFitness) GetFitness(code gp.Expr) (float64, bool) {
-    correct := 0
-    for i, input := range e.in {
-        res := code.Eval(input...)
-        if res == e.out[i] { correct++ }
+    // fitness is no. of correct cases / total
+    return func(code gp.Expr) (float64, bool) {
+        correct := 0
+        for i, in := range input {
+            if code.Eval(in...) == output[i] {
+                correct++
+            }
+        }
+        return float64(correct)/float64(paritySize) , true
     }
-    return float64(correct)/float64(e.size) , true
 }
 
 // main GP routine
 func main() {
     var threads, generations, popsize int
     var seed int64
+    var plot, verbose bool
 	flag.IntVar(&threads, "threads", runtime.NumCPU(), "number of parallel threads")
 	flag.Int64Var(&seed, "seed", 0, "random seed - set randomly if <= 0")
 	flag.IntVar(&generations, "gens", 40, "maximum no. of generations")
 	flag.IntVar(&popsize, "popsize", 1000, "population size")
+	flag.BoolVar(&plot, "plot", false, "connect to gogpweb to plot statistics")
+	flag.BoolVar(&verbose, "v", false, "print out best individual so far")
     flag.Parse()
-    gp.SetSeed(seed)
-    fmt.Println("no. of parallel threads is ", threads)
-	runtime.GOMAXPROCS(threads)
 
-    // create initial generation
     pset := gp.CreatePrimSet(PARITY_FANIN)
     pset.Add(boolean.And, boolean.Or, boolean.Xor, boolean.Not, boolean.True, boolean.False)
-    generate := gp.GenFull(pset, 3, 5)
-    eval := Fitness()
-    pop, evals := gp.CreatePopulation(popsize, generate).Evaluate(eval, threads)
-    s := stats.Create(pop, 0, evals)
-    fmt.Println(s)
 
-    // loop till reach target fitness or exceed no. of generations
-    tournament := gp.Tournament(3)
-    mutate := gp.MutUniform(gp.GenGrow(pset, 0, 2))
-    crossover := gp.CxOnePoint()
-    for gen := 1; gen <= generations; gen++ {
-        if s.Fit.Max >= TARGET {
-            fmt.Println("** SUCCESS **")
-            break
-        }
-        offspring := tournament.Select(pop, popsize)
-        pop, evals = gp.VarAnd(offspring, crossover, mutate, 0.5, 0.2).Evaluate(eval, threads)
-        s = stats.Create(pop, gen, evals)
-        fmt.Println(s)
+    problem := gp.Model{
+        PrimitiveSet: pset,
+        Generator: gp.GenFull(pset, 3, 5),
+        PopSize: popsize,
+        Fitness: getFitnessFunc(),
+        Offspring: gp.Tournament(3),
+        Mutate: gp.MutUniform(gp.GenGrow(pset, 0, 2)),
+        MutateProb: 0.2,
+        Crossover: gp.CxOnePoint(),
+        CrossoverProb: 0.5,
+        Threads: threads,
     }
-    fmt.Println(pop.Best())
+    problem.PrintParams("== Even parity problem for", PARITY_FANIN, "inputs ==")
+    gp.SetSeed(seed)
+	runtime.GOMAXPROCS(threads)
+    fmt.Println()
+
+    logger := &stats.Logger{
+        MaxGen: generations, 
+        TargetFitness: TARGET,
+        PrintStats: true,
+        PrintBest: verbose,
+    }
+    if plot { 
+        if err := logger.Dial(); err != nil {
+            fmt.Println("error connecting to server:", err)
+            return
+        }
+    }
+
+    problem.Run(logger)
 }
+
 

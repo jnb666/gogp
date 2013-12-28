@@ -18,10 +18,11 @@ import (
 )
 
 type Config struct {
-    tournSize, maxSize, maxDepth int
+    tournSize, maxSize, maxDepth, maxGen int
     seed int64
     targetFitness float64
     datafile, profile string
+    plot, verbose bool
 }
 
 type Point struct { x, y float64 }
@@ -43,25 +44,6 @@ func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
             diff += (val-pt.y)*(val-pt.y)
         }
         return 1.0/(1.0+diff), true
-    }
-}
-
-// returns function to log stats for each generation
-func statsLogger(targetFitness float64) func(gp.Population, int, int) bool {
-    best := -1
-    return func(pop gp.Population, gen, evals int) bool {
-        s := stats.Create(pop, gen, evals)
-        fmt.Println(s)
-        // print best if fitness is improved
-        if best < 0 || pop[s.Fit.MaxIndex].Fitness > pop[best].Fitness {
-            best = s.Fit.MaxIndex
-            fmt.Println(pop[best])
-        }
-        if s.Fit.Max >= targetFitness {
-            fmt.Println("** SUCCESS **")
-            return true
-        }
-        return false
     }
 }
 
@@ -89,7 +71,20 @@ func main() {
     if args.maxSize > 0 { 
         problem.AddDecorator(gp.SizeLimit(args.maxSize))
     }
-    problem.PrintParams("== GP Symbolic Regression ==")
+    problem.PrintParams("== GP Symbolic Regression for ", args.datafile, "==")
+
+    logger := &stats.Logger{
+        MaxGen: args.maxGen, 
+        TargetFitness: args.targetFitness,
+        PrintStats: true,
+        PrintBest: args.verbose,
+    }
+    if args.plot { 
+        if err := logger.Dial(); err != nil {
+            fmt.Println("error connecting to server:", err)
+            return
+        }
+    }
 	if args.profile != "" {
 		if file, err := os.Create(args.profile); err == nil {
     		fmt.Println("writing CPU profile data to ", args.profile)
@@ -97,13 +92,14 @@ func main() {
     		defer pprof.StopCPUProfile()
         }
 	}
-    problem.Run(statsLogger(args.targetFitness))
+    fmt.Println()
+    problem.Run(logger)
 }
 
 // process cmd line flags and read input file
 func getArgs(m *gp.Model) *Config {
     args := &Config{}  
-	flag.IntVar(&m.MaxGen, "gens", 40, "maximum no. of generations")
+	flag.IntVar(&args.maxGen, "gens", 40, "maximum no. of generations")
 	flag.Float64Var(&args.targetFitness, "target", 0.99, "target fitness")
 	flag.IntVar(&args.tournSize, "tournsize", 5, "tournament size")
 	flag.IntVar(&args.maxSize, "size", 0, "maximum tree size - zero for none")
@@ -115,6 +111,8 @@ func getArgs(m *gp.Model) *Config {
 	flag.Int64Var(&args.seed, "seed", 0, "random seed - set randomly if <= 0")
 	flag.StringVar(&args.datafile, "trainset", "poly.dat", "file with training function")
 	flag.StringVar(&args.profile, "cpuprofile", "", "write cpu profile to file")
+	flag.BoolVar(&args.plot, "plot", false, "connect to gogpweb to plot statistics")
+	flag.BoolVar(&args.verbose, "v", false, "print out best individual so far")
 	flag.Parse()
     return args
 }

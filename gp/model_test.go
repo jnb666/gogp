@@ -2,7 +2,6 @@
 package gp_test
 
 import (
-    "fmt"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/num"
     "github.com/jnb666/gogp/stats"
@@ -19,13 +18,6 @@ func getFitness(code gp.Expr) (float64, bool) {
     return 1.0/(1.0+diff), true
 }
 
-// callback for each generation, returns true to exit the run
-func logStats(pop gp.Population, gen, evals int) bool {
-    s := stats.Create(pop, gen, evals)
-    fmt.Println(s)
-    return pop[s.Fit.MaxIndex].Fitness >= 1
-}
-
 func ExampleModel() {
     gp.SetSeed(1)
     pset := gp.CreatePrimSet(1, "x")
@@ -34,7 +26,6 @@ func ExampleModel() {
     problem := gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 1, 3),
-        MaxGen: 20,
         PopSize: 500,
         Fitness: getFitness,
         Offspring: gp.Tournament(3),
@@ -44,7 +35,10 @@ func ExampleModel() {
         CrossoverProb: 0.5,
         Threads: 1,
     }
-    problem.Run(logStats)
+
+    logger := &stats.Logger{ MaxGen: 20, TargetFitness: 0.99, PrintStats: true }
+    problem.Run(logger)
+
     /* Output:
 set random seed: 1
 Gen      Evals    FitMax   FitAvg   FitStd   SizeAvg  SizeMax  DepthAvg DepthMax
@@ -56,6 +50,7 @@ Gen      Evals    FitMax   FitAvg   FitStd   SizeAvg  SizeMax  DepthAvg DepthMax
 5        291      0.663    0.0918   0.1      8.92     32       2.82     8
 6        302      0.663    0.117    0.133    10.3     35       3.2      10
 7        294      1        0.152    0.17     11.1     35       3.48     10
+** SUCCESS **
     */
 }
 

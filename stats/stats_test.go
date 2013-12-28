@@ -32,11 +32,11 @@ func TestStats(t *testing.T) {
         t.Error("stats text looks wrong! Expected\n", exp)
     }
     for _, fld := range fields {
-        val, tag, err := s.Get(fld)
+        val, err := s.Get(fld)
         if err != nil { t.Error(err) }
-        t.Log(fld, "=>" , tag, val)
+        t.Log(fld, "=>" , val)
     }
-    _, _, err := s.Get("Fit.Foo")
+    _, err := s.Get("Fit.Foo")
     if fmt.Sprint(err) != "Stats field Foo is not valid" { 
         t.Error("expected error for missing field")
     }

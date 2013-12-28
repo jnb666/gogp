@@ -7,6 +7,7 @@
 <script language="javascript" type="text/javascript" src="jquery.flot.js"></script>
 <script type="text/javascript">
 $(function() {
+    var first = true;
     var generation = 0;
     var wait = 1000;
     var options = {
@@ -16,37 +17,61 @@ $(function() {
         colors: [ "#ff0000", "#0000ff", "#b0b0ff" ]
     };
 
-    // get the data and optionally poll for updates
-    function fetch(poll) {
-        var field = $('input[name=dataset]:checked', '#choose').val();
-        $.getJSON(
-            "/data/" + field + "/" + generation,
-            function(data) { doUpdate(data, field, poll) }
-        );
-    }
-
-    // process AJAX response
-    function doUpdate(data, field, poll) {
+    // process new data
+    function doUpdate(data, field) {
         generation = data.Plots[0].data.length;
         // update the stats
         for (var i = 0; i < data.Stats.length; i += 1) {
             var row = data.Stats[i];
             var cls = (parseInt(row[0]) % 2 == 0) ? '"reg"' : '"alt"';
             var html = "<tr class="+cls+"><td>"+row.join("</td><td>")+"</td></tr>";
-            $('#stats-grid').prepend(html);
+            $("#stats-grid").prepend(html);
         }
+        // update best individual
+        $("#best").html(data.Best);
         // update the plot
-        options.xaxis.max = data.MaxGen;
+        if (data.MaxGen > 0) { options.xaxis.max = data.MaxGen }
         options.yaxis.max = (field == "Fit") ? 1 : null;
         $.plot($("#placeholder"), data.Plots, options);
-        // get next generation?
-        if (poll && !data.Done) {
-            setTimeout(function() { fetch(poll) }, wait);
-        }
+    }
+
+    // get the data and optionally poll for updates
+    function fetch(poll) {
+        var field = $("input[name=dataset]:checked", "#choose").val();
+        $.getJSON(
+            "/data/" + field + "/" + generation,
+            function(data) { 
+                // process AJAX response
+                if (first) {
+                    var html = "";
+                    for (var i = 0; i < data.Headers.length; i++) {
+                        var cls = (i==data.Headers.length-1) ? ' class="rightHeader"' : "";
+                        html += "<th" + cls + ">"+data.Headers[i]+"</th>";
+                    }
+                    $("#stats-head").append("<tr>" + html + "</tr>");
+                    first = false;
+                }
+                if (data.Plots.length > 0) {
+                    doUpdate(data, field);
+                }
+                // poll for next generation
+                if (poll && !data.Done) {
+                    setTimeout(function() { fetch(poll) }, wait);
+                }
+            }
+        );
     }
 
     // update once on select new plot type
-    $('#choose input').on('change', function() { fetch(false) });
+    $("#choose input").on("change", function() { fetch(false) });
+
+    // get next run
+    $("#restart").click(function() {
+        generation = 0;
+        $("#best").html("");
+        $("#stats-grid").find("tr").remove();
+        fetch(true);
+    });
 
     // update and poll on load
     fetch(true);
@@ -62,14 +87,15 @@ $(function() {
     <input type="radio" name="dataset" value="Size"> size<br>
     <input type="radio" name="dataset" value="Depth"> depth<br>
   </form>
+  <br>
+  <button id="restart">update</button>
+  <br><br>
+  <div id="best" class="best-container"></div>
 </div>
 <div class="stats-container">
   <div id="tableContainer" class="tableContainer">
   <table border="0" cellpadding="0" cellspacing="0" width="100%" class="scrollTable">
-    <thead class="fixedHeader">
-      <tr>
-        {{range .Headers}}<th{{if .Last}} class="rightHeader"{{end}}>{{.Text}}</th>{{end}}
-      </tr>
+    <thead class="fixedHeader" id="stats-head">
     </thead>
     <tbody class="scrollContent" id="stats-grid">
     </tbody>
