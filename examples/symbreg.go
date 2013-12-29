@@ -109,10 +109,7 @@ func initLogger(args *Config, trainSet []Point) gp.Logger {
     if args.plot { 
         logger.RegisterPlot(plotTarget(trainSet)) 
         logger.RegisterPlot(plotBest(trainSet))
-        if err := logger.Dial(); err != nil {
-            fmt.Println("error connecting to server:", err)
-            os.Exit(1)
-        }
+        logger.Dial()
     }
     return logger
 }

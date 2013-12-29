@@ -65,14 +65,13 @@ type Logger struct {
 }
 
 // Dial connects the Logger to the TCP server for web based plotting.
-func (l *Logger) Dial() error {
+func (l *Logger) Dial() {
     port := "localhost" + TCPPort
     conn, err := net.Dial("tcp", port)
     if err != nil {
-        return err
+        log.Fatal("error connecting to plot server:", err)
     }
     l.enc = gob.NewEncoder(conn)
-    return nil
 }
 
 // RegisterPlot sets up a new callback to generate and send a plot back to the server.

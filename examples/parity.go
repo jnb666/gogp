@@ -86,12 +86,7 @@ func main() {
         PrintStats: true,
         PrintBest: verbose,
     }
-    if plot { 
-        if err := logger.Dial(); err != nil {
-            fmt.Println("error connecting to server:", err)
-            return
-        }
-    }
+    if plot { logger.Dial() }
 
     problem.Run(logger)
 }

@@ -5,54 +5,48 @@ import (
     "os"
     "bufio"
     "fmt"
+    "runtime"
+    "flag"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
 )
 
 const (
     MAX_MOVES = 600
-    ROWS = 32
-    COLS = 32
-    FOOD = '#'
+    FOOD  = '#'
     TRAIL = '*'
     START = 'S'
 )
 
-var (
-    DIR_ROW = []int{ 1, 0, -1, 0 }
-    DIR_COL = []int{ 0, 1, 0, -1 }
-)
+// grid of cells
+type Grid [][]byte
+
+// global config data
+type Config struct {
+    startRow, startCol, startDir int
+    totalFood int
+    grid Grid
+}
+
+// ant data
+type Ant struct {
+    row, col, dir int
+    moves, eaten int
+    grid Grid
+}
 
 // positive modulus
 func mod(a, b int) int {
     return (a % b + b) % b
 }
 
-// grid of cells
-type Grid [][]byte
-
-func (g Grid) String() string {
-    text := ""
-    for _, line := range g {
-        text += string(line) + "\n"
-    }
-    return text
-}
-
-// ant data
-type Ant struct {
-    row, col, dir int
-    moves, eaten, totalFood int
-    grid Grid
-}
-
 // execute each of args in sequence
 type progN struct { *gp.BaseFunc }
 
 func (o progN) Eval(args ...gp.Value) gp.Value {
-    return func() {
+    return func(ant *Ant) {
         for _, arg := range args {
-            arg.(func())()
+            arg.(func(*Ant))(ant)
         }
     }
 }
@@ -61,32 +55,24 @@ func (o progN) Eval(args ...gp.Value) gp.Value {
 type terminal struct {
     *gp.BaseFunc
     fn func(*Ant)
-    ant *Ant
 }
 
-func Terminal(name string, fn func(*Ant), ant *Ant) gp.Opcode {
-    return terminal{&gp.BaseFunc{name,0}, fn, ant}
+func Terminal(name string, fn func(*Ant)) gp.Opcode {
+    return terminal{&gp.BaseFunc{name,0}, fn}
 }
 
 func (o terminal) Eval(args ...gp.Value) gp.Value {
-    return func() { o.fn(o.ant) }
+    return o.fn
 }
 
-// turn left
-func left(ant *Ant) {
-    if ant.moves < MAX_MOVES {
-        ant.moves++
-        ant.dir = mod(ant.dir-1, 4)
-        ant.grid[ant.row][ant.col] = TRAIL
-    }
-}
-
-// turn right
-func right(ant *Ant) {
-    if ant.moves < MAX_MOVES {
-        ant.moves++
-        ant.dir = mod(ant.dir+1, 4)
-        ant.grid[ant.row][ant.col] = TRAIL
+// turn left or left
+func turn(dir int) func(*Ant) {
+    return func(ant *Ant) {
+        if ant.moves < MAX_MOVES {
+            ant.moves++
+            ant.dir = mod(ant.dir + dir, 4)
+            ant.grid[ant.row][ant.col] = TRAIL
+        }
     }
 }
 
@@ -94,112 +80,158 @@ func right(ant *Ant) {
 func step(ant *Ant) {
     if ant.moves < MAX_MOVES {
         ant.moves++
-        ant.row = mod((ant.row + DIR_ROW[ant.dir]), ROWS)
-        ant.col = mod((ant.col + DIR_COL[ant.dir]), COLS)
+        ant.row, ant.col = ant.grid.Next(ant.row, ant.col, ant.dir)
         if ant.grid[ant.row][ant.col] == FOOD { ant.eaten++ }
         ant.grid[ant.row][ant.col] = TRAIL
     }
 }
 
-type ifFood struct { 
-    *gp.BaseFunc
-    ant *Ant
-}
-
 // if next cell contains food execute first arg else execute second
+type ifFood struct { *gp.BaseFunc }
+
 func (o ifFood) Eval(args ...gp.Value) gp.Value {
-    return func() {
-        row := mod(o.ant.row + DIR_ROW[o.ant.dir], ROWS)
-        col := mod(o.ant.col + DIR_COL[o.ant.dir], COLS)
-        if o.ant.grid[row][col] == FOOD {
-            args[0].(func())()
+    return func(ant *Ant) {
+        row, col := ant.grid.Next(ant.row, ant.col, ant.dir)
+        if ant.grid[row][col] == FOOD {
+            args[0].(func(*Ant))(ant)
         } else {
-            args[1].(func())()
+            args[1].(func(*Ant))(ant)
         }
     }
 }
 
+// grid methods
+func (g Grid) Next(row, col, dir int) (nRow, nCol int) {
+    rows, cols := len(g), len(g[0])
+    nRow = mod(row + []int{1, 0, -1, 0}[dir], rows)
+    nCol = mod(col + []int{0, 1, 0, -1}[dir], cols)
+    return
+}
+
+func (g Grid) String() (text string) {
+    for _, line := range g {
+        text += string(line) + "\n"
+    }
+    return
+}
+
+func (g Grid) Clone() Grid {
+    grid := make(Grid, len(g))
+    for row, line := range g {
+        grid[row] = append([]byte{}, line...)
+    }
+    return grid
+}
+
 // read the trail file to setup the grid
-func readTrail(file string) Grid {
+func readTrail(file string) *Config {
     f, err := os.Open(file)
     if err != nil {
         fmt.Println(err)
         os.Exit(1)
     }
-    grid := Grid{}
+    conf := Config{ grid: Grid{} }
     scanner := bufio.NewScanner(f)
+    row := 0
     for scanner.Scan() {
-        grid = append(grid, scanner.Bytes())
-    }
-    f.Close()
-    return grid
-}
-
-// reset ant data to default - make deep copy of grid
-func (ant *Ant) reset(grid Grid) {
-    ant.grid = make(Grid, len(grid))
-    ant.moves = 0
-    ant.eaten = 0
-    ant.totalFood = 0
-    for row, line := range grid {
-        ant.grid[row] = append([]byte{}, line...)
+        line := scanner.Bytes()
         for col, cell := range line {
             switch cell {
             case FOOD:
-                ant.totalFood++
+                conf.totalFood++
             case START:
-                ant.row, ant.col = row, col
-                ant.dir = 1
+                conf.startRow, conf.startCol = row, col
+                conf.startDir = 1
             }
         }
+        conf.grid = append(conf.grid, line)
+        row++
+    }
+    f.Close()
+    return &conf
+}
+
+// create a new ant - make deep copy of grid
+func newAnt(conf *Config) *Ant {
+    grid := conf.grid.Clone()
+    return &Ant{
+        row: conf.startRow,
+        col: conf.startCol,
+        dir: conf.startDir,
+        grid: grid,
     }
 }
 
+// run the code
+func run(conf *Config, code gp.Expr) *Ant {
+    ant := newAnt(conf)
+    runFunc := code.Eval().(func(*Ant))
+    for ant.moves < MAX_MOVES { runFunc(ant) }
+    return ant
+}
+
 // run the program to calculate the fitness as no. of food cells eaten / total
-func fitnessFunc(ant *Ant, grid Grid) func(gp.Expr) (float64, bool) {
+func fitnessFunc(conf *Config) func(gp.Expr) (float64, bool) {
     return func(code gp.Expr) (float64, bool) {
-        ant.reset(grid)
-        run := code.Eval().(func())
-        for ant.moves < MAX_MOVES { run() }
-        return float64(ant.eaten) / float64(ant.totalFood), true
+        ant := run(conf, code)
+        return float64(ant.eaten)/float64(conf.totalFood), true
     }
 }
 
 // build and run model
 func main() {
-    gp.SetSeed(0)
-    grid := readTrail("santafe_trail.txt")
-    ant  := &Ant{}
+    var trailFile string
+    var threads, generations, popsize, depth int
+    var seed int64
+    var plot, verbose bool
+    flag.StringVar(&trailFile, "trail", "santafe_trail.txt", "trail definition file")
+	flag.IntVar(&threads, "threads", runtime.NumCPU(), "number of parallel threads")
+	flag.Int64Var(&seed, "seed", 0, "random seed - set randomly if <= 0")
+	flag.IntVar(&generations, "gens", 40, "maximum no. of generations")
+	flag.IntVar(&popsize, "popsize", 4000, "population size")
+	flag.IntVar(&depth, "depth", 7, "depth limit - or zero for none")
+	flag.BoolVar(&plot, "plot", false, "connect to gogpweb to plot statistics")
+	flag.BoolVar(&verbose, "v", false, "print out best individual so far")
+    flag.Parse()
+
+    gp.SetSeed(seed)
+	runtime.GOMAXPROCS(threads)
+    config := readTrail(trailFile)
 
     pset := gp.CreatePrimSet(0)
     pset.Add(progN{ &gp.BaseFunc{"prog2", 2} })
     pset.Add(progN{ &gp.BaseFunc{"prog3", 3} })
-    pset.Add(Terminal("left", left, ant))
-    pset.Add(Terminal("right", right, ant))
-    pset.Add(Terminal("step", step, ant))
-    pset.Add(ifFood{ &gp.BaseFunc{"if_food", 2}, ant })
-
-    evalFitness := fitnessFunc(ant, grid)
+    pset.Add(ifFood{ &gp.BaseFunc{"if_food", 2} })
+    pset.Add(Terminal("left", turn(-1)))
+    pset.Add(Terminal("right", turn(1)))
+    pset.Add(Terminal("step", step))
 
     problem := gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 1, 2),
-        PopSize: 300,
-        Fitness: evalFitness,
+        PopSize: popsize,
+        Fitness: fitnessFunc(config),
         Offspring: gp.Tournament(7),
         Mutate: gp.MutUniform(gp.GenFull(pset, 0, 2)),
         MutateProb: 0.2,
         Crossover: gp.CxOnePoint(),
         CrossoverProb: 0.5,
-        Threads: 1,
+        Threads: threads,
     }
+    if depth > 0 {
+        problem.AddDecorator(gp.DepthLimit(depth))
+    }
+    problem.PrintParams("== Artificial ant ==")
+    fmt.Println()
 
-    logger := &stats.Logger{ MaxGen: 40, TargetFitness: 0.99, PrintStats: true }
+    logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.99, PrintStats: true, PrintBest: verbose }
+    if plot { logger.Dial() }
+
     pop := problem.Run(logger)
-    best := pop.Best()
-    fmt.Println(best)
-    evalFitness(best.Code)
-    fmt.Println(ant.grid)
+    if verbose {
+        ant := run(config, pop.Best().Code)
+        fmt.Println(ant.grid)
+    }
 }
 
 
