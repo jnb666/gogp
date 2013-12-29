@@ -55,7 +55,7 @@ func (m *Model) AddDecorator(decor Decorator) {
 // The Run method first creates a new population and iteratively evolves it
 // using the VarAnd algorithm. The Log method is called on the Logger for each generation. 
 // If it returns true then the run terminates.
-func (m *Model) Run(l Logger) {
+func (m *Model) Run(l Logger) Population {
     gen, evals := 0, 0
     pop := CreatePopulation(m.PopSize, m.Generator)
     pop, evals = pop.Evaluate(m, m.Threads)
@@ -65,6 +65,7 @@ func (m *Model) Run(l Logger) {
         pop = VarAnd(offspring, m.Crossover, m.Mutate, m.CrossoverProb, m.MutateProb)
         pop, evals = pop.Evaluate(m, m.Threads)
     }
+    return pop
 }
 
 // PrintParams prints the config parameters for this run to stdout

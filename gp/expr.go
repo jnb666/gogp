@@ -34,36 +34,36 @@ type EphemeralConstant interface {
 // terminal nodes.
 type Expr []Opcode
 
-// base function type
-type baseFunc struct {
-    name  string
-    arity int
+// BaseFunc is an abstract implementation of the Opcode interface for embedding in concrete types
+type BaseFunc struct {
+    OpName  string
+    OpArity int
 }
 
-func (f *baseFunc) Arity() int { return f.arity }
+func (f *BaseFunc) Arity() int { return f.OpArity }
 
-func (f *baseFunc) String() string { return f.name }
+func (f *BaseFunc) String() string { return f.OpName }
 
-func (f *baseFunc) Eval(args ...Value) Value { panic("abstract method!") }
+func (f *BaseFunc) Eval(args ...Value) Value { panic("abstract method!") }
 
-func (f *baseFunc) Format(args ...string) string {
+func (f *BaseFunc) Format(args ...string) string {
     if len(args) > 0 {
-        return f.name + "(" + strings.Join(args, ", ") + ")"
+        return f.OpName + "(" + strings.Join(args, ", ") + ")"
     } else {
-        return f.name
+        return f.OpName
     }
 }
 
 // binary operator type 
-type binOp struct { *baseFunc }
+type binOp struct { *BaseFunc }
 
 func (b binOp) Format(args ...string) string {
-    return "(" + args[0] + " " + b.name + " " + args[1] + ")"
+    return "(" + args[0] + " " + b.OpName + " " + args[1] + ")"
 }
 
 // variable type
 type variable struct {
-    *baseFunc
+    *BaseFunc
     Narg int
 }
 
@@ -71,23 +71,23 @@ func (v variable) Eval(input ...Value) Value { return input[v.Narg] }
 
 // Terminal constructor. Returns an Opcode representing a function which does not take any arguments.
 func Terminal(name string) Opcode {
-    return &baseFunc{name, 0}
+    return &BaseFunc{name, 0}
 }
 
 // Function constructor. Returns an Opcode representing a function with given name and arity.
 func Function(name string, arity int) Opcode {
-    return &baseFunc{name, arity}
+    return &BaseFunc{name, arity}
 }
 
 // Operator constructor. Returns an opcode represening a function with two arguments.
 // This is formatted in infix notation by the Format method.
 func Operator(name string) Opcode {
-    return binOp{ &baseFunc{name, 2} }
+    return binOp{ &BaseFunc{name, 2} }
 }
 
 // Variable constructor. Returns an opcode representing input variable number narg.
 func Variable(name string, narg int) Opcode {
-    return variable{ &baseFunc{name,0}, narg }
+    return variable{ &BaseFunc{name, 0}, narg }
 }
 
 // Clone makes a copy of an expression.
@@ -114,16 +114,28 @@ func (e Expr) Traverse(pos int, nfunc, tfunc func(Opcode)) int {
 
 // Eval evaluates an expression for given input values by calling the Eval method on each Opcode.
 func (e Expr) Eval(input ...Value) Value {
-    list := []Value{}
-    node := func(op Opcode) {
-        end := len(list)-op.Arity()
-        list = append(list[:end], op.Eval(list[end:]...))
+    var doEval func() Value
+    pos := -1
+    doEval = func() Value {
+        pos++
+        op := e[pos]
+        arity := op.Arity()
+        switch arity {
+        case 0:
+            return op.Eval(input...)
+        case 1:
+            return op.Eval(doEval())
+        case 2:
+            return op.Eval(doEval(), doEval())
+        default:
+            args := make([]Value, arity)
+            for i := range args {
+                args[i] = doEval()
+            }
+            return op.Eval(args...)
+        }
     }
-    term := func(op Opcode) {
-        list = append(list, op.Eval(input...))
-    }
-    e.Traverse(0, node, term)
-    return list[0]
+    return doEval()
 }
 
 // Format returns a string representation of an expression.
