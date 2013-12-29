@@ -10,14 +10,13 @@ import (
 
 // Formatting for logging implemented in Stats.String() method.
 // The default set of columns and format strings are set on initialisation.
-// TCPPort defines the default port for IPC between the server and clients.
 var (
     LogColumn = []string{"Gen", "Evals", "Fit.Max", "Fit.Avg", "Fit.Std", 
                          "Size.Avg", "Size.Max", "Depth.Avg", "Depth.Max"}
     LogFormatFloat = "%.3g"
     LogFormatInt   = "%d"
     LogColumnFormat = "%-8s"
-    TCPPort = ":5555"
+    Debug = false
 )
 
 // The Stats structure holds the statistics for the give Population.

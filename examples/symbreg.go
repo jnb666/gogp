@@ -9,6 +9,7 @@ import (
     "fmt"
     "flag"
     "strings"
+    "time"
     "runtime"
     "runtime/pprof"
     "math/rand"
@@ -19,13 +20,47 @@ import (
 
 type Config struct {
     tournSize, maxSize, maxDepth, maxGen int
-    seed int64
     targetFitness float64
-    datafile, profile string
+    datafile, cpuprofile, memprofile string
     plot, verbose bool
+    seed int64
 }
 
 type Point struct { x, y float64 }
+
+// read data file
+func getData(filename string) (ERCmin, ERCmax int, trainSet []Point) {
+    file, err := os.Open(filename)
+    defer file.Close()
+    checkErr(err)
+    scanner := bufio.NewScanner(file)
+    // first line has params for random constant generation
+    getLine(scanner, &ERCmin, &ERCmax)
+    // rest are x and y points
+    trainSet = []Point{}
+    var p Point
+    for getLine(scanner, &p.x, &p.y) {
+        trainSet = append(trainSet, p)
+    }
+    return
+}
+
+func getLine(s *bufio.Scanner, item1, item2 interface{}) bool {
+    if !s.Scan() { return false }
+    items := strings.Split(s.Text(), "\t")
+    _, err := fmt.Sscan(items[0], item1)
+    checkErr(err)
+    _, err = fmt.Sscan(items[1], item2)
+    checkErr(err)
+    return true
+}
+
+func checkErr(err error) {
+    if err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+}
 
 // function to generate the random constant generator function
 func ercGen(start, end int) func()num.V {
@@ -98,37 +133,43 @@ func initModel() (problem *gp.Model, args *Config, trainSet []Point) {
     return
 }
 
-// setup logger and custom plot
-func initLogger(args *Config, trainSet []Point) gp.Logger {
+// main GP routine
+func main() {
+    stats.Debug = true
+    problem, args, trainSet := initModel()
     logger := &stats.Logger{
         MaxGen: args.maxGen, 
         TargetFitness: args.targetFitness,
         PrintStats: true,
         PrintBest: args.verbose,
     }
-    if args.plot { 
+    if args.plot {
         logger.RegisterPlot(plotTarget(trainSet)) 
         logger.RegisterPlot(plotBest(trainSet))
-        logger.Dial()
+        go logger.ListenAndServe(":8080", "../web")
+        stats.StartBrowser("http://localhost:8080")
     }
-    return logger
-}
-
-// main GP routine
-func main() {
-    problem, args, trainSet := initModel()
     gp.SetSeed(args.seed)
-	runtime.GOMAXPROCS(problem.Threads)
-    logger := initLogger(args, trainSet)
-	if args.profile != "" {
-		if file, err := os.Create(args.profile); err == nil {
-    		fmt.Println("writing CPU profile data to ", args.profile)
-    		pprof.StartCPUProfile(file)
-    		defer pprof.StopCPUProfile()
-        }
-	}
     fmt.Println()
+	if args.cpuprofile != "" {
+		file, err := os.Create(args.cpuprofile)
+        checkErr(err)
+    	fmt.Println("writing CPU profile data to ", args.cpuprofile)
+    	pprof.StartCPUProfile(file)
+    	defer pprof.StopCPUProfile()
+	}
+	runtime.GOMAXPROCS(problem.Threads)
     problem.Run(logger)
+    if args.memprofile != "" {
+        file, err := os.Create(args.memprofile)
+        checkErr(err)
+    	fmt.Println("writing memory profile data to ", args.memprofile)
+        pprof.WriteHeapProfile(file)
+        file.Close()
+    }
+    if args.plot {
+        time.Sleep(1*time.Hour)
+    }
 }
 
 // process cmd line flags and read input file
@@ -145,44 +186,12 @@ func getArgs(m *gp.Model) *Config {
 	flag.Float64Var(&m.MutateProb, "mutprob", 0.2, "mutation probability")
 	flag.Int64Var(&args.seed, "seed", 0, "random seed - set randomly if <= 0")
 	flag.StringVar(&args.datafile, "trainset", "poly.dat", "file with training function")
-	flag.StringVar(&args.profile, "cpuprofile", "", "write cpu profile to file")
 	flag.BoolVar(&args.plot, "plot", false, "connect to gogpweb to plot statistics")
 	flag.BoolVar(&args.verbose, "v", false, "print out best individual so far")
+	flag.StringVar(&args.cpuprofile, "cpuprofile", "", "write cpu profile to file")
+	flag.StringVar(&args.memprofile, "memprofile", "", "write memory profile to file")
 	flag.Parse()
     return args
 }
 
-// read data file
-func getData(filename string) (ERCmin, ERCmax int, trainSet []Point) {
-    file, err := os.Open(filename)
-    defer file.Close()
-    checkErr(err)
-    scanner := bufio.NewScanner(file)
-    // first line has params for random constant generation
-    getLine(scanner, &ERCmin, &ERCmax)
-    // rest are x and y points
-    trainSet = []Point{}
-    var p Point
-    for getLine(scanner, &p.x, &p.y) {
-        trainSet = append(trainSet, p)
-    }
-    return
-}
-
-func getLine(s *bufio.Scanner, item1, item2 interface{}) bool {
-    if !s.Scan() { return false }
-    items := strings.Split(s.Text(), "\t")
-    _, err := fmt.Sscan(items[0], item1)
-    checkErr(err)
-    _, err = fmt.Sscan(items[1], item2)
-    checkErr(err)
-    return true
-}
-
-func checkErr(err error) {
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
-}
 

@@ -7,6 +7,7 @@ import (
     "fmt"
     "runtime"
     "flag"
+    "time"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
 )
@@ -225,12 +226,17 @@ func main() {
     fmt.Println()
 
     logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.99, PrintStats: true, PrintBest: verbose }
-    if plot { logger.Dial() }
-
+    if plot {
+        go logger.ListenAndServe(":8080", "../web")
+        stats.StartBrowser("http://localhost:8080")
+    }
     pop := problem.Run(logger)
     if verbose {
         ant := run(config, pop.Best().Code)
         fmt.Println(ant.grid)
+    }
+    if plot {
+        time.Sleep(1*time.Hour)
     }
 }
 

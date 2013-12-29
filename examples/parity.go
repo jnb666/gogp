@@ -6,6 +6,7 @@ import (
     "fmt"
     "math"
     "flag"
+    "time"
     "runtime"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
@@ -86,9 +87,14 @@ func main() {
         PrintStats: true,
         PrintBest: verbose,
     }
-    if plot { logger.Dial() }
-
+    if plot {
+        go logger.ListenAndServe(":8080", "../web")
+        stats.StartBrowser("http://localhost:8080")
+    }
     problem.Run(logger)
+    if plot {
+        time.Sleep(1*time.Hour)
+    }
 }
 
 
