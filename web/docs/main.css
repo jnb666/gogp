@@ -18,8 +18,7 @@ table, td, a {
     float: left;
 }
 .form-container {
-    width: 240px;
-    height: 280px;
+    width: 242px;
     float: left;
     border: 10px solid #FFF;
 }
@@ -28,6 +27,7 @@ table, td, a {
     border: 16px solid #FFF;
 }
 .best-container {
+    height: 142px;
     overflow-y: auto;
     font-size: 9pt;
 	clear: right;
