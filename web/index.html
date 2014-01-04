@@ -3,13 +3,18 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>gogpweb</title>
-<script language="javascript" type="text/javascript" src="jquery.min.js"></script>
-<script language="javascript" type="text/javascript" src="jquery.flot.js"></script>
+<link rel="stylesheet" href="main.css"/>
+<link rel="stylesheet" href="jquery-ui.custom.css"/>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery-ui.custom.min.js"></script>
+<script type="text/javascript" src="jquery.flot.js"></script>
 <script type="text/javascript">
 $(function() {
     var first = true;
+    var done = false;
+    var running = false;
     var generation = 0;
-    var wait = 1000;
+    var wait = 500;
     var options = {
         legend: { position: "nw" },
         xaxis:  { },
@@ -17,9 +22,18 @@ $(function() {
         colors: [ "#ff0000", "#0000ff", "#b0b0ff" ]
     };
 
+    // set stats headers
+    function setHeaders(headers) {
+        var html = "";
+        for (var i = 0; i < headers.length; i++) {
+             var cls = (i==headers.length-1) ? ' class="rightHeader"' : "";
+             html += "<th"+cls+">" + headers[i] + "</th>";
+        }
+        $("#stats-head").append("<tr>" + html + "</tr>");
+    }
+
     // process new data
     function doUpdate(data, field) {
-        generation = data.Gen + 1;
         // update the stats
         for (var i = 0; i < data.Stats.length; i += 1) {
             var row = data.Stats[i];
@@ -37,63 +51,114 @@ $(function() {
         $.plot($("#placeholder"), data.Plots, options);
     }
 
-    // get the data and optionally poll for updates
-    function fetch(poll) {
+    // get the stats and plot data until got generation no. gen
+    function fetch(gen) {
         var field = $("input[name=dataset]:checked", "#choose").val();
-        $.getJSON(
-            "/data/" + field + "/" + generation,
+        $.getJSON("/data/" + field + "/" + generation,
             function(data) { 
                 // process AJAX response
                 if (first) {
-                    var html = "";
-                    for (var i = 0; i < data.Headers.length; i++) {
-                        var cls = (i==data.Headers.length-1) ? ' class="rightHeader"' : "";
-                        html += "<th" + cls + ">"+data.Headers[i]+"</th>";
-                    }
-                    $("#stats-head").append("<tr>" + html + "</tr>");
+                    setHeaders(data.Headers);
                     first = false;
                 }
                 if (data.Plots.length > 0) {
                     doUpdate(data, field);
+                    generation = data.Gen + 1;
                 }
-                // poll for next generation
-                if (poll && !data.Done) {
-                    setTimeout(function() { fetch(poll) }, wait);
+                if (data.Done) { done = true; }
+                if (generation < gen && !done) {
+                    setTimeout(function() { fetch(gen) }, wait)
                 }
             }
         );
     }
 
-    // update once on select new plot type
-    $("#choose input").on("change", function() { fetch(false) });
+    // step to next generation
+    function step() {
+        if (done) { return; }
+        $.getJSON("/step",
+            function(isDone) {
+                if (isDone) {
+                    fetch(generation);
+                    done = true;
+                    running = false;
+                    $("#doRun").text("run");
+                } else {
+                    fetch(generation+1);
+                    if (running) { setTimeout(step, wait); }
+                }
+            }
+        );
+    }
+
+    // slider to control animation speed
+    function updateSlider(value) {
+        wait = value;
+        $("#wait").text("delay: " + value + " msec");
+    }
+    $("#slider").slider({
+        min: 0,
+        max: wait*2,
+        step: 50,
+        value: wait,
+        slide: function(event, ui) { updateSlider(ui.value); }
+    });
+    updateSlider(wait);
+
+    // single step
+    $("#doStep").click(step);
+
+    // step every wait msec
+    $("#doRun").click(function() {
+        running = !running;
+        if (running) {
+            $("#doRun").text("stop");
+            step();
+        } else {
+            $("#doRun").text("run");
+        }
+    });
 
     // get next run
-    $("#restart").click(function() {
+    $("#doRestart").click(function() {
+        done = false;
         generation = 0;
         $("#best").html("");
         $("#stats-grid").find("tr").remove();
-        fetch(true);
+        $.getJSON("/start",
+            function(ok) {
+                if (ok) { fetch(1); }
+            }
+        );
     });
 
-    // update and poll on load
-    fetch(true);
+    // update data if selected new plot type
+    $("#choose input").on("change", function() { fetch(0) });
+
+    // update data on load
+    fetch(1);
 });
 </script>
-<link rel="stylesheet" type="text/css" href="main.css">
 </head>
 <body>
 <div id="placeholder" class="plot-container"></div>
 <div class="form-container">
+  <button id="doStep">step</button> &nbsp;
+  <button id="doRun">run</button> &nbsp;
+  <button id="doRestart">restart</button>
+  <br><br>
+  <div id="slider"></div>
+  <div id="wait"></div>
+  <br>
   <form id="choose">
     <input type="radio" name="dataset" value="Fit" checked> fitness<br>
     <input type="radio" name="dataset" value="Size"> size<br>
     <input type="radio" name="dataset" value="Depth"> depth<br>
     <input type="radio" name="dataset" value="Plot"> custom<br>
   </form>
-  <br>
-  <button id="restart">update</button>
-  <br><br>
-  <div id="best" class="best-container"></div>
+</div>
+<div class="best-container">
+  <div id="best" class="best-box"></div>
 </div>
 <div class="stats-container">
   <div id="tableContainer" class="tableContainer">

@@ -6,7 +6,6 @@ import (
     "fmt"
     "math"
     "flag"
-    "time"
     "runtime"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
@@ -64,7 +63,7 @@ func main() {
     pset := gp.CreatePrimSet(PARITY_FANIN)
     pset.Add(boolean.And, boolean.Or, boolean.Xor, boolean.Not, boolean.True, boolean.False)
 
-    problem := gp.Model{
+    problem := &gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 3, 5),
         PopSize: popsize,
@@ -79,21 +78,17 @@ func main() {
     problem.PrintParams("== Even parity problem for", PARITY_FANIN, "inputs ==")
     gp.SetSeed(seed)
 	runtime.GOMAXPROCS(threads)
-    fmt.Println()
+    logger := &stats.Logger{ MaxGen: generations, TargetFitness: TARGET }
 
-    logger := &stats.Logger{
-        MaxGen: generations, 
-        TargetFitness: TARGET,
-        PrintStats: true,
-        PrintBest: verbose,
-    }
     if plot {
-        go logger.ListenAndServe(":8080", "../web")
+        go stats.MainLoop(problem, logger)
         stats.StartBrowser("http://localhost:8080")
-    }
-    problem.Run(logger)
-    if plot {
-        time.Sleep(1*time.Hour)
+        logger.ListenAndServe(":8080", "../web")
+    } else {
+        fmt.Println()
+        logger.PrintStats = true
+        logger.PrintBest = verbose
+        problem.Run(logger)
     }
 }
 

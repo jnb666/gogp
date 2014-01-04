@@ -2,11 +2,11 @@
 body {
 	background: #FFF;
 	color: #000;
-	font: normal normal 11pt Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font: normal normal 10pt Verdana, Geneva, Arial, Helvetica, sans-serif;
 	margin: 10px;
 	padding: 0
 }
-table, td, a {
+table, th, td {
 	color: #000;
 	font: normal normal 9pt Verdana, Geneva, Arial, Helvetica, sans-serif
 }
@@ -18,19 +18,31 @@ table, td, a {
     float: left;
 }
 .form-container {
-    width: 242px;
+    width: 240px;
     float: left;
-    border: 10px solid #FFF;
+    padding: 10px;
+}
+.best-container {
+	clear: both;
+    border-style: solid;
+    border-color: #FFF;
+    border-top-width: 10px;
+    border-left-width: 16px;
+}
+.best-box {
+    width: 736px;
+    height: 55px;    
+    overflow-y: auto;
+    font-size: 9pt;
+    padding: 2px;
+    border: 1px solid #000;
 }
 .stats-container {
 	clear: both;
-    border: 16px solid #FFF;
-}
-.best-container {
-    height: 142px;
-    overflow-y: auto;
-    font-size: 9pt;
-	clear: right;
+    border-style: solid;
+    border-color: #FFF;
+    border-top-width: 10px;
+    border-left-width: 16px;
 }
 
 /* scrollable table formatting */
@@ -39,11 +51,10 @@ table, td, a {
 	border: 1px solid #000;
 	height: 285px;
 	overflow: hidden;
-	width: 736px;
+	width: 740px;
 }
 div.tableContainer table {
 	float: left;
-	width: 736px;
 }
 thead.fixedHeader tr {
 	display: block;

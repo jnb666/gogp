@@ -9,7 +9,6 @@ import (
     "fmt"
     "flag"
     "strings"
-    "time"
     "runtime"
     "runtime/pprof"
     "math/rand"
@@ -21,7 +20,7 @@ import (
 type Config struct {
     tournSize, maxSize, maxDepth, maxGen int
     targetFitness float64
-    datafile, cpuprofile, memprofile string
+    datafile, cpuprofile string
     plot, verbose bool
     seed int64
 }
@@ -135,22 +134,11 @@ func initModel() (problem *gp.Model, args *Config, trainSet []Point) {
 
 // main GP routine
 func main() {
-    stats.Debug = true
     problem, args, trainSet := initModel()
-    logger := &stats.Logger{
-        MaxGen: args.maxGen, 
-        TargetFitness: args.targetFitness,
-        PrintStats: true,
-        PrintBest: args.verbose,
-    }
-    if args.plot {
-        logger.RegisterPlot(plotTarget(trainSet)) 
-        logger.RegisterPlot(plotBest(trainSet))
-        go logger.ListenAndServe(":8080", "../web")
-        stats.StartBrowser("http://localhost:8080")
-    }
+    logger := &stats.Logger{ MaxGen: args.maxGen, TargetFitness: args.targetFitness }
+	runtime.GOMAXPROCS(problem.Threads)
     gp.SetSeed(args.seed)
-    fmt.Println()
+
 	if args.cpuprofile != "" {
 		file, err := os.Create(args.cpuprofile)
         checkErr(err)
@@ -158,17 +146,20 @@ func main() {
     	pprof.StartCPUProfile(file)
     	defer pprof.StopCPUProfile()
 	}
-	runtime.GOMAXPROCS(problem.Threads)
-    problem.Run(logger)
-    if args.memprofile != "" {
-        file, err := os.Create(args.memprofile)
-        checkErr(err)
-    	fmt.Println("writing memory profile data to ", args.memprofile)
-        pprof.WriteHeapProfile(file)
-        file.Close()
-    }
+
     if args.plot {
-        time.Sleep(1*time.Hour)
+        // run using browser interface
+        logger.RegisterPlot(plotTarget(trainSet)) 
+        logger.RegisterPlot(plotBest(trainSet))
+        go stats.MainLoop(problem, logger)
+        stats.StartBrowser("http://localhost:8080")
+        logger.ListenAndServe(":8080", "../web")
+    } else {
+        // cmd line run
+        fmt.Println()
+        logger.PrintStats = true
+        logger.PrintBest = args.verbose
+        problem.Run(logger)
     }
 }
 
@@ -189,7 +180,6 @@ func getArgs(m *gp.Model) *Config {
 	flag.BoolVar(&args.plot, "plot", false, "connect to gogpweb to plot statistics")
 	flag.BoolVar(&args.verbose, "v", false, "print out best individual so far")
 	flag.StringVar(&args.cpuprofile, "cpuprofile", "", "write cpu profile to file")
-	flag.StringVar(&args.memprofile, "memprofile", "", "write memory profile to file")
 	flag.Parse()
     return args
 }

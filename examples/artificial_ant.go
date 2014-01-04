@@ -7,7 +7,6 @@ import (
     "fmt"
     "runtime"
     "flag"
-    "time"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
 )
@@ -143,6 +142,7 @@ func readTrail(file string) *Config {
             case START:
                 conf.startRow, conf.startCol = row, col
                 conf.startDir = 1
+                line[col] = TRAIL
             }
         }
         conf.grid = append(conf.grid, line)
@@ -207,7 +207,7 @@ func main() {
     pset.Add(Terminal("right", turn(1)))
     pset.Add(Terminal("step", step))
 
-    problem := gp.Model{
+    problem := &gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 1, 2),
         PopSize: popsize,
@@ -225,18 +225,22 @@ func main() {
     problem.PrintParams("== Artificial ant ==")
     fmt.Println()
 
-    logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.99, PrintStats: true, PrintBest: verbose }
-    if plot {
-        go logger.ListenAndServe(":8080", "../web")
-        stats.StartBrowser("http://localhost:8080")
-    }
-    pop := problem.Run(logger)
+    logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.99 }
     if verbose {
-        ant := run(config, pop.Best().Code)
-        fmt.Println(ant.grid)
+        logger.OnDone = func(best *gp.Individual) {
+            ant := run(config, best.Code)
+            fmt.Println(ant.grid)            
+        }
     }
+
     if plot {
-        time.Sleep(1*time.Hour)
+        go stats.MainLoop(problem, logger)
+        stats.StartBrowser("http://localhost:8080")
+        logger.ListenAndServe(":8080", "../web")
+    } else {
+        logger.PrintStats = true
+        logger.PrintBest = verbose
+        problem.Run(logger)
     }
 }
 
