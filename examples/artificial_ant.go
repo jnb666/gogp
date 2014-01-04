@@ -179,6 +179,40 @@ func fitnessFunc(conf *Config) func(gp.Expr) (float64, bool) {
     }
 }
 
+// new bubble plot
+func createPlot(label string, grid Grid, cellType byte, bgSize, fgSize float64) stats.Plot { 
+    plot := stats.NewPlot(label, len(grid)*len(grid[0]))
+    plot.Lines.Bubbles.Show = true
+    i := 0
+    for y, row := range grid {
+        for x, cell := range row {
+            size := bgSize
+            if cell == cellType { size = fgSize }
+            if (size > 0) {
+                plot.Data[i] = [3]float64{ float64(x), float64(len(grid)-y), size }
+                i++
+            }
+        }
+    }
+    plot.Data = plot.Data[:i]
+    return plot
+}
+
+// function to plot grid
+func plotGrid(c *Config) func(gp.Population) stats.Plot {
+    return func(pop gp.Population) stats.Plot {
+        return createPlot("food", c.grid, FOOD, 0.5, 2)
+    }
+}
+
+// function to plot path of best individual
+func plotBest(c *Config) func(gp.Population) stats.Plot {
+    return func(pop gp.Population) stats.Plot {
+        ant := run(c, pop.Best().Code)
+        return createPlot("best", ant.grid, TRAIL, 0, 1)
+    }
+}
+
 // build and run model
 func main() {
     var trailFile string
@@ -234,6 +268,8 @@ func main() {
     }
 
     if plot {
+        logger.RegisterPlot(plotGrid(config)) 
+        logger.RegisterPlot(plotBest(config)) 
         go stats.MainLoop(problem, logger)
         stats.StartBrowser("http://localhost:8080")
         logger.ListenAndServe(":8080", "../web")

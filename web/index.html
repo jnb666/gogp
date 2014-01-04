@@ -8,6 +8,8 @@
 <script type="text/javascript" src="jquery.min.js"></script>
 <script type="text/javascript" src="jquery-ui.custom.min.js"></script>
 <script type="text/javascript" src="jquery.flot.js"></script>
+<script type="text/javascript" src="jquery.flot.JUMlib.js"></script>
+<script type="text/javascript" src="jquery.flot.bubbles.js"></script>
 <script type="text/javascript">
 $(function() {
     var first = true;
@@ -16,10 +18,11 @@ $(function() {
     var generation = 0;
     var wait = 500;
     var options = {
-        legend: { position: "nw" },
+        legend: { position: "se" },
         xaxis:  { },
         yaxis:  { },
-        colors: [ "#ff0000", "#0000ff", "#b0b0ff" ]
+        colors: [ "#ff0000", "#0000ff", "#b0b0ff" ],
+        series: { bubbles: { active:true, show:false} }
     };
 
     // set stats headers
@@ -48,6 +51,7 @@ $(function() {
         options.xaxis.max = (data.MaxGen > 0 && field != "Plot") ? data.MaxGen : null;
         options.yaxis.min = options.xaxis.min; 
         options.yaxis.max = (field == "Fit") ? 1 : null;
+        options.series.bubbles.show = data.Plots[0].lines.bubbles.show;
         $.plot($("#placeholder"), data.Plots, options);
     }
 

@@ -57,7 +57,10 @@ type Plot struct {
     Lines struct {
         Fill bool       `json:"fill"`
         LineWidth int   `json:"lineWidth"`
-    }                   `json:"lines"`
+        Bubbles struct {
+            Show   bool `json:"show"`
+        } `json:"bubbles"`
+    } `json:"lines"`
     Data  [][3]float64  `json:"data"`
 }
 
