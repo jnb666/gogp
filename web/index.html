@@ -16,11 +16,12 @@ $(function() {
     var done = false;
     var running = false;
     var generation = 0;
+    var maxGen = 0;
     var wait = 500;
     var options = {
         legend: { position: "se" },
         xaxis:  { },
-        yaxis:  { },
+        yaxis:  { autoscaleMargin: null },
         colors: [ "#ff0000", "#0000ff", "#b0b0ff" ],
         series: { bubbles: { active:true, show:false} }
     };
@@ -35,43 +36,48 @@ $(function() {
         $("#stats-head").append("<tr>" + html + "</tr>");
     }
 
-    // process new data
-    function doUpdate(data, field) {
-        // update the stats
-        for (var i = 0; i < data.Stats.length; i += 1) {
-            var row = data.Stats[i];
+    // append stats to table
+    function updateStats(stats) {
+        for (var i = 0; i < stats.length; i += 1) {
+            var row = stats[i];
             var cls = (parseInt(row[0]) % 2 == 0) ? '"reg"' : '"alt"';
             var html = "<tr class="+cls+"><td>"+row.join("</td><td>")+"</td></tr>";
             $("#stats-grid").prepend(html);
         }
-        // update best individual
-        $("#best").html(data.Best);
-        // update the plot
-        options.xaxis.min = (field != "Plot") ? 0 : null;
-        options.xaxis.max = (data.MaxGen > 0 && field != "Plot") ? data.MaxGen : null;
-        options.yaxis.min = options.xaxis.min; 
-        options.yaxis.max = (field == "Fit") ? 1 : null;
-        options.series.bubbles.show = data.Plots[0].lines.bubbles.show;
-        $.plot($("#placeholder"), data.Plots, options);
+    }
+
+    // get data and update the given plot
+    function fetchPlot(id, field) {
+        $.getJSON("/plot/" + field,
+            function(data) {
+                options.xaxis.min = (field != "Plot") ? 0 : null;
+                options.xaxis.max = (field != "Plot") ? maxGen : null;
+                options.yaxis.min = options.xaxis.min; 
+                options.yaxis.max = (field == "Fit") ? 1 : null;
+                options.series.bubbles.show = data[0].lines.bubbles.show;
+                $.plot($(id), data, options);
+            }
+        );
     }
 
     // get the stats and plot data until got generation no. gen
     function fetch(gen) {
-        var field = $("input[name=dataset]:checked", "#choose").val();
-        $.getJSON("/data/" + field + "/" + generation,
+        $.getJSON("/stats/" + generation,
             function(data) { 
-                // process AJAX response
                 if (first) {
                     setHeaders(data.Headers);
                     first = false;
                 }
-                if (data.Plots.length > 0) {
-                    doUpdate(data, field);
-                    generation = data.Gen + 1;
-                }
+                updateStats(data.Stats);
+                $("#best").html(data.Best);
+                generation = data.Gen + 1;
+                maxGen = data.MaxGen;
                 if (data.Done) { done = true; }
                 if (generation < gen && !done) {
-                    setTimeout(function() { fetch(gen) }, wait)
+                    setTimeout(function() { fetch(gen) }, wait);
+                } else {
+                    fetchPlot("#plot1", $("#choose-plot1").val());
+                    fetchPlot("#plot2", $("#choose-plot2").val());
                 }
             }
         );
@@ -129,15 +135,16 @@ $(function() {
         generation = 0;
         $("#best").html("");
         $("#stats-grid").find("tr").remove();
-        $.getJSON("/start",
-            function(ok) {
-                if (ok) { fetch(1); }
-            }
-        );
+        $.getJSON("/start", step );
     });
 
     // update data if selected new plot type
-    $("#choose input").on("change", function() { fetch(0) });
+    $("#choose-plot1").change(function() {
+        fetchPlot("#plot1", $("#choose-plot1").val());
+    });
+    $("#choose-plot2").change(function() {
+        fetchPlot("#plot2", $("#choose-plot2").val());
+    });
 
     // update data on load
     fetch(1);
@@ -145,28 +152,46 @@ $(function() {
 </script>
 </head>
 <body>
-<div id="placeholder" class="plot-container"></div>
-<div class="form-container">
-  <button id="doStep">step</button> &nbsp;
-  <button id="doRun">run</button> &nbsp;
-  <button id="doRestart">restart</button>
-  <br><br>
-  <div id="slider"></div>
-  <div id="wait"></div>
-  <br>
-  <form id="choose">
-    <input type="radio" name="dataset" value="Fit" checked> fitness<br>
-    <input type="radio" name="dataset" value="Size"> size<br>
-    <input type="radio" name="dataset" value="Depth"> depth<br>
-    <input type="radio" name="dataset" value="Plot"> custom<br>
-  </form>
+<div class="menu-container">
+<table>
+<tr>
+  <td class="button-cell"><button id="doStep">step</button></td>
+  <td class="button-cell"><button id="doRun">run</button></td>
+  <td class="button-cell"><button id="doRestart">restart</button></td>
+  <td class="chooser-cell">plot 1:
+    <select id="choose-plot1">
+        <option value="Fit" selected>fitness</option>
+        <option value="Size">size</option>
+        <option value="Depth">depth</option>
+        <option value="Plot">custom</option>
+    </select>
+  </td>
+  <td class="chooser-cell">plot 2:
+    <select id="choose-plot2">
+        <option value="Fit">fitness</option>
+        <option value="Size" selected>size</option>
+        <option value="Depth">depth</option>
+        <option value="Plot">custom</option>
+    </select>
+  </td>
+  <td class="slider-cell">
+    <div id="slider"></div>
+    <div id="wait"></div>
+  </td>
+</tr>
+</table>
 </div>
+
+<div id="plot1" class="plot1-container"></div>
+<div id="plot2" class="plot2-container"></div>
+
 <div class="best-container">
   <div id="best" class="best-box"></div>
 </div>
+
 <div class="stats-container">
-  <div id="tableContainer" class="tableContainer">
-  <table border="0" cellpadding="0" cellspacing="0" width="100%" class="scrollTable">
+  <div class="tableContainer">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%">
     <thead class="fixedHeader" id="stats-head">
     </thead>
     <tbody class="scrollContent" id="stats-grid">
@@ -174,5 +199,6 @@ $(function() {
   </table>
   </div>
 </div>
+
 </body>
 </html>

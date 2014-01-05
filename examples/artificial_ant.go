@@ -201,7 +201,7 @@ func createPlot(label string, grid Grid, cellType byte, bgSize, fgSize float64) 
 // function to plot grid
 func plotGrid(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
-        return createPlot("food", c.grid, FOOD, 0.5, 2)
+        return createPlot("food", c.grid, FOOD, 0.3, 1.4)
     }
 }
 
@@ -209,7 +209,7 @@ func plotGrid(c *Config) func(gp.Population) stats.Plot {
 func plotBest(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         ant := run(c, pop.Best().Code)
-        return createPlot("best", ant.grid, TRAIL, 0, 1)
+        return createPlot("best", ant.grid, TRAIL, 0, 0.8)
     }
 }
 

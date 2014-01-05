@@ -4,7 +4,6 @@ import (
     "fmt"
     "log"
     "sync"
-    "regexp"
     "strconv"
     "os/exec"
     "net/http"
@@ -41,17 +40,16 @@ type Logger struct {
     step, start     chan bool
 }
 
-// The PlotData struct holds a set of plots which are served via http.
-type PlotData struct {
+// The PlotStats struct holds stats data which is served via HTTP in JSON format
+type PlotStats struct {
     Done    bool
     Gen, MaxGen  int
     Headers []string
     Stats   [][]string
-    Plots   []Plot
     Best    string
 }
 
-// Plot struct represents a flot plot which is served in JSON format
+// Plot struct represents a flot plot which is served via HTTP in JSON format
 type Plot struct {
     Label string        `json:"label"`
     Lines struct {
@@ -155,7 +153,8 @@ func (l *Logger) ListenAndServe(port, webRoot string) {
     var err error
     handleChannel("/start", l.start)
     handleChannel("/step", l.step)
-    http.Handle("/data/", l)
+    http.HandleFunc("/stats/", l.statsHandler(len("/stats/")))
+    http.HandleFunc("/plot/", l.plotHandler(len("/plot/")))
     http.Handle("/", http.FileServer(http.Dir(webRoot)))
     log.Println("starting web server on", port)
     if Debug {
@@ -178,24 +177,64 @@ func sendJSON(w http.ResponseWriter, data interface{}) {
     w.Write(jsonData)
 }
 
-var urlPath = regexp.MustCompile("/([a-zA-Z]+)+/([0-9]+)$")
+// get plot stats from firstGen onwards
+func (l *Logger) getPlotStats(firstGen int) (data PlotStats) {
+    data.Stats = [][]string{}
+    data.Headers = LogHeaders()
+    l.Lock()
+    defer l.Unlock()
+    last := len(l.history)-1
+    data.Done = l.done
+    data.Gen = last
+    data.MaxGen = l.MaxGen
+    if last >= 0 {
+        if firstGen <= last {
+            for _, s := range l.history[firstGen:] {
+                data.Stats = append(data.Stats, s.LogValues())
+            }
+        }
+        data.Best = l.history[last].Best
+    }
+    return
+}
 
-// ServeHTTP implements the http.Handler interface to serve stats data encoded in JSON format
-// URL is of the form .../<field>/<from gen>
-func (l *Logger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    fields := urlPath.FindStringSubmatch(r.URL.Path)
-    if fields == nil {
-        http.NotFound(w, r)
-        return
+// return handler to serve stats data via http
+// URL is of form /stats/<from gen no.>
+func (l *Logger) statsHandler(patternLen int) func (http.ResponseWriter, *http.Request) { 
+    return func (w http.ResponseWriter, r *http.Request) {
+        firstGen, err := strconv.Atoi(r.URL.Path[patternLen:])
+        if err != nil || firstGen < 0 {
+            http.NotFound(w, r)
+            return
+        }
+        sendJSON(w, l.getPlotStats(firstGen))
     }
-    // extract the data
-    firstGen, _ := strconv.Atoi(fields[2])
-    data, err := l.GetPlotData(fields[1], firstGen)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
+}
+
+// return handler to serve plot data via http
+// URL is of form /plot/<metric>
+func (l *Logger) plotHandler(patternLen int) func (http.ResponseWriter, *http.Request) { 
+    return func (w http.ResponseWriter, r *http.Request) {
+        metric := r.URL.Path[patternLen:]
+        l.Lock()
+        defer l.Unlock()
+        if metric == "Plot" {
+            // custom plots
+            if l.plots != nil { 
+                sendJSON(w, l.plots) 
+            } else {
+                http.NotFound(w, r)
+            }
+            return
+        }
+        // stats metric plots (Fit, Size etc.)
+        plots, err := getStatsPlots(l.history, metric)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        sendJSON(w, plots)
     }
-    sendJSON(w, data)
 }
 
 // RegisterPlot sets up a new callback to generate and send a plot back to the server.
@@ -237,37 +276,6 @@ func getStatsPlots(h []*Stats, name string) (lines []Plot, err error) {
                 lines[i].Data[j] = [3]float64{ float64(j), y, 0 }
             }
         }
-    }
-    return
-}
-
-// GetPlotData creates a new PlotData struct from the history data.
-// The plots are for the metric given in the field parameter.
-// Stats are included from the generation given by the firstGen parameter.
-func (l *Logger) GetPlotData(field string, firstGen int) (data PlotData, err error) {
-    data.Stats = [][]string{}
-    data.Headers = LogHeaders()
-    l.Lock()
-    defer l.Unlock()
-    last := len(l.history)-1
-    data.Done = l.done
-    data.Gen = last
-    data.MaxGen = l.MaxGen
-    data.Plots = []Plot{}
-    if last < 0 { return }
-    // get the stats
-    if firstGen <= last {
-        for _, s := range l.history[firstGen:] {
-            data.Stats = append(data.Stats, s.LogValues())
-        }
-    }
-    data.Best = l.history[last].Best
-    if field == "Plot" && l.plots != nil {
-        // custom plots
-        data.Plots = l.plots
-    } else {
-        // stats metric plots (Fit, Size etc.)
-        data.Plots, err = getStatsPlots(l.history, field)
     }
     return
 }

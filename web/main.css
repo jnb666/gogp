@@ -3,7 +3,7 @@ body {
 	background: #FFF;
 	color: #000;
 	font: normal normal 10pt Verdana, Geneva, Arial, Helvetica, sans-serif;
-	margin: 10px;
+	margin: 0px;
 	padding: 0
 }
 table, th, td {
@@ -12,15 +12,21 @@ table, th, td {
 }
 
 /* containers */
-.plot-container {
-    width: 500px;
-    height: 300px;
+.menu-container {
+    width: 100%;
+    background: #EEE;
+    padding: 2px 10px;
+}
+.plot1-container {
+    clear: both;
+    width: 400px;
+    height: 400px;
     float: left;
 }
-.form-container {
-    width: 240px;
+.plot2-container {
     float: left;
-    padding: 10px;
+    width: 400px;
+    height: 400px;
 }
 .best-container {
 	clear: both;
@@ -28,14 +34,6 @@ table, th, td {
     border-color: #FFF;
     border-top-width: 10px;
     border-left-width: 16px;
-}
-.best-box {
-    width: 736px;
-    height: 55px;    
-    overflow-y: auto;
-    font-size: 9pt;
-    padding: 2px;
-    border: 1px solid #000;
 }
 .stats-container {
 	clear: both;
@@ -45,13 +43,41 @@ table, th, td {
     border-left-width: 16px;
 }
 
+/* menu control formatting */
+.button-cell {
+    width: 70px;
+    text-align: center;
+    padding: 4px;
+}
+.chooser-cell {
+    width: 130px;
+    text-align: center;
+    padding: 4px;
+}
+.slider-cell {
+    width: 150px;
+    padding: 4px;
+}
+button {
+    width: 60px;
+}
+
+/* best candidate */
+.best-box {
+    width: 770px;
+    height: 55px;    
+    overflow-y: auto;
+    font-size: 9pt;
+    padding: 2px;
+    border: 1px solid #000;
+}
+
 /* scrollable table formatting */
 .tableContainer {
 	clear: both;
 	border: 1px solid #000;
-	height: 285px;
 	overflow: hidden;
-	width: 740px;
+	width: 774px;
 }
 div.tableContainer table {
 	float: left;
@@ -64,10 +90,10 @@ thead.fixedHeader th {
     color: #FFF;
 	padding: 2px 3px;
 	text-align: left;
-	width: 80px;
+	width: 84px;
 }
 thead.fixedHeader th.rightHeader {
-	width: 96px;
+	width: 100px;
 }
 tbody.scrollContent {
 	display: block;
@@ -76,7 +102,7 @@ tbody.scrollContent {
 	width: 100%;
 }
 tbody.scrollContent td {
-	width: 80px;
+	width: 84px;
 	padding: 2px 3px 3px 4px;
 }
 tbody.scrollContent tr.alt td {
