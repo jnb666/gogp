@@ -153,4 +153,20 @@ func TestCrossover(t *testing.T) {
     }
 }
 
+// test graphviz functions
+func TestGraph(t *testing.T) {
+    gp.SetSeed(1)
+    pset := initPset(true)
+    exprs := testExprs(pset)
+    t.Log(exprs[2], exprs[2].Format())
+    graph := exprs[2].Graph("test")
+    t.Log(graph)
+    data, err := gp.Layout(graph, "svg")
+    if (err != nil) { t.Error(err) }
+    t.Log(string(data))
+}
+
+
+
+
 

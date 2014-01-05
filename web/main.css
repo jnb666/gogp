@@ -24,9 +24,14 @@ table, th, td {
     float: left;
 }
 .plot2-container {
-    float: left;
     width: 400px;
     height: 400px;
+    float: left;
+}
+.graph-container {
+    width: 100%;
+    height: 100%;
+    overflow: scroll;
 }
 .best-container {
 	clear: both;

@@ -50,10 +50,6 @@ func (e erc) Init() gp.EphemeralConstant {
     return erc{ e.gen(), e.gen, e.name }
 }
 
-func (e erc) String() string {
-    return e.name
-}
-
 // Func constructor returns a numeric function with given arity 
 // which implements the gp.Opcode interface
 func Func(name string, arity int, fun func([]V)V) gp.Opcode {

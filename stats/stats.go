@@ -23,7 +23,7 @@ var (
 type Stats struct {
     Gen, Evals int
     Fit, Size, Depth StatsData
-    Best string
+    Best *gp.Individual
 }
 
 // The StatsData struct holds the values for a single metric.
@@ -39,7 +39,7 @@ func Create(pop gp.Population, gen, evals int) *Stats {
     s.Fit = updateStats(pop, func(ind *gp.Individual)float64 { return ind.Fitness })
     s.Size = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Size()) })
     s.Depth = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Depth()) })
-    s.Best = pop[s.Fit.MaxIndex].Code.Format()
+    s.Best = pop[s.Fit.MaxIndex]
     return s
 }
 

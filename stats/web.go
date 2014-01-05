@@ -91,9 +91,18 @@ func (l *Logger) Reset() {
 }
 
 // update history and plots
-func (l *Logger) update(s *Stats, pop gp.Population, done bool) {
+func (l *Logger) update(s *Stats, pop gp.Population, gen int) bool {
     l.Lock()
     defer l.Unlock()
+    done := gen >= l.MaxGen || s.Fit.Max >= l.TargetFitness
+    if l.PrintStats {
+        fmt.Println(s)
+        if s.Fit.Max >= l.TargetFitness { fmt.Println("** SUCCESS **") }
+    }
+    if l.PrintBest && s.Fit.Max > l.bestFit {
+        l.bestFit = s.Fit.Max
+        fmt.Println(s.Best.Code.Format())
+    }
     if l.history == nil {
         l.history = []*Stats{s}
     } else {
@@ -106,24 +115,16 @@ func (l *Logger) update(s *Stats, pop gp.Population, done bool) {
             l.plots[i] = plot(pop)
         }
     }
+    return done
 }
 
 // Log logs a messages to stdout if PrintStats or PrintBest are set. 
 // History stats are stored so they can be served via ServeHTTP.
 func (l *Logger) Log(pop gp.Population, gen, evals int) bool {
-    s := Create(pop, gen, evals)
-    done := gen >= l.MaxGen || s.Fit.Max >= l.TargetFitness
-    if l.PrintStats {
-        fmt.Println(s)
-        if s.Fit.Max >= l.TargetFitness { fmt.Println("** SUCCESS **") }
-    }
-    if l.PrintBest && s.Fit.Max > l.bestFit {
-        l.bestFit = s.Fit.Max
-        fmt.Println(s.Best)
-    }
-    l.update(s, pop, done)
+    stats := Create(pop, gen, evals)
+    done := l.update(stats, pop, gen)
     if done && l.OnDone != nil {
-        l.OnDone(pop[s.Fit.MaxIndex])
+        l.OnDone(pop[stats.Fit.MaxIndex])
     }
     if l.step != nil {
         l.step <- done
@@ -155,6 +156,7 @@ func (l *Logger) ListenAndServe(port, webRoot string) {
     handleChannel("/step", l.step)
     http.HandleFunc("/stats/", l.statsHandler(len("/stats/")))
     http.HandleFunc("/plot/", l.plotHandler(len("/plot/")))
+    http.HandleFunc("/graph", l.graphHandler())
     http.Handle("/", http.FileServer(http.Dir(webRoot)))
     log.Println("starting web server on", port)
     if Debug {
@@ -177,6 +179,26 @@ func sendJSON(w http.ResponseWriter, data interface{}) {
     w.Write(jsonData)
 }
 
+// return handler to serve SVG graph of best individual via HTTP
+func (l *Logger) graphHandler() func (http.ResponseWriter, *http.Request) { 
+    return func (w http.ResponseWriter, r *http.Request) {
+        if len(l.history) == 0 {
+            http.NotFound(w, r)
+            return
+        }
+        code := l.history[len(l.history)-1].Best.Code
+        graph := code.Graph("best")
+        data, err := gp.Layout(graph, "svg")
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        w.Header().Set("Content-Type", "image/svg+xml")
+        w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+        w.Write(data)
+    }
+}
+
 // get plot stats from firstGen onwards
 func (l *Logger) getPlotStats(firstGen int) (data PlotStats) {
     data.Stats = [][]string{}
@@ -193,7 +215,7 @@ func (l *Logger) getPlotStats(firstGen int) (data PlotStats) {
                 data.Stats = append(data.Stats, s.LogValues())
             }
         }
-        data.Best = l.history[last].Best
+        data.Best = l.history[last].Best.Code.Format()
     }
     return
 }
