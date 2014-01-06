@@ -48,22 +48,16 @@ $(function() {
 
     // get data and update the given plot
     function fetchPlot(id, field) {
-        if (field == "Graph") {
-            $(id).html('<div id="graph" class="graph-container"></div>');
-            $("#graph").load("/graph");
-        } else {
-            // $(id).empty();
-            $.getJSON("/plot/" + field,
-                function(data) {
-                    options.xaxis.min = (field != "Plot") ? 0 : null;
-                    options.xaxis.max = (field != "Plot") ? maxGen : null;
-                    options.yaxis.min = options.xaxis.min; 
-                    options.yaxis.max = (field == "Fit") ? 1 : null;
-                    options.series.bubbles.show = data[0].lines.bubbles.show;
-                    $.plot($(id), data, options);
-                }
-            );
-        }
+        $.getJSON("/plot/" + field,
+            function(data) {
+                options.xaxis.min = (field != "Plot") ? 0 : null;
+                options.xaxis.max = (field != "Plot") ? maxGen : null;
+                options.yaxis.min = options.xaxis.min; 
+                options.yaxis.max = (field == "Fit") ? 1 : null;
+                options.series.bubbles.show = data[0].lines.bubbles.show;
+                $.plot($(id), data, options);
+            }
+        );
     }
 
     // get the stats and plot data until got generation no. gen
@@ -169,7 +163,6 @@ $(function() {
         <option value="Fit" selected>fitness</option>
         <option value="Size">size</option>
         <option value="Depth">depth</option>
-        <option value="Graph">graph</option>
         <option value="Plot">custom</option>
     </select>
   </td>
@@ -178,7 +171,6 @@ $(function() {
         <option value="Fit">fitness</option>
         <option value="Size" selected>size</option>
         <option value="Depth">depth</option>
-        <option value="Graph">graph</option>
         <option value="Plot">custom</option>
     </select>
   </td>
@@ -194,6 +186,9 @@ $(function() {
 <div id="plot2" class="plot2-container"></div>
 
 <div class="best-container">
+  <div class="best-header">
+    <a href="/graph" target="_blank" class="best-link">best individual</a>
+  </div>
   <div id="best" class="best-box"></div>
 </div>
 

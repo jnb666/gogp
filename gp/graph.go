@@ -11,22 +11,26 @@ import (
     gv "code.google.com/p/gographviz"
 )
 
-// Default node attributes for graph plotting
-var DefaultAttrs = gv.Attrs{
-    "fontname":`"Helvetica"`,
-    "style": "filled",
-    "color": "lightgrey",
-}
+// Default attributes for graph plotting
+var (
+    NodeAttrs = gv.Attrs{
+        "fontname": `"Helvetica"`,
+        "fontsize": "12",
+        "style":    "filled",
+        "color":    "lightgrey",
+    }
+    GraphDPI = "72"
+)
 
 // Graph returns a graphiz graph for the expression.
 // This depends on the "code.google.com/p/gographviz" module.
 func (e Expr) Graph(name string) *gv.Graph {
     g := gv.NewGraph()
     g.SetName(name)
-    g.Attrs.Add("dpi", "56")
+    g.Attrs.Add("dpi", GraphDPI)
     // add nodes
     for i, op := range e {
-        attrs := DefaultAttrs.Copy()
+        attrs := NodeAttrs.Copy()
         attrs.Add("label", `"`+op.String()+`"`)
         g.AddNode(name, strconv.Itoa(i), attrs)
     }
