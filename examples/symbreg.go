@@ -113,7 +113,7 @@ func initModel() (problem *gp.Model, args *Config, trainSet []Point) {
     ercMin, ercMax, trainSet = getData(args.datafile)
 
     pset := gp.CreatePrimSet(1, "x")
-    pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg)
+    pset.Add(num.Add, num.Sub, num.Mul, num.Div)
     pset.Add(num.Ephemeral("ERC", ercGen(ercMin, ercMax)))
 
     problem.PrimitiveSet = pset
@@ -149,6 +149,7 @@ func main() {
 
     if args.plot {
         // run using browser interface
+        gp.GraphDPI = "60"
         logger.RegisterPlot(plotTarget(trainSet)) 
         logger.RegisterPlot(plotBest(trainSet))
         go stats.MainLoop(problem, logger)
