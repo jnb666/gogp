@@ -12,7 +12,6 @@ import (
 )
 
 const (
-    MAX_MOVES = 600
     FOOD  = '#'
     TRAIL = '*'
     START = 'S'
@@ -24,14 +23,14 @@ type Grid [][]byte
 // global config data
 type Config struct {
     startRow, startCol, startDir int
-    totalFood int
+    maxMoves, totalFood int
     grid Grid
 }
 
 // ant data
 type Ant struct {
     row, col, dir int
-    moves, eaten int
+    maxMoves, moves, eaten int
     grid Grid
 }
 
@@ -68,7 +67,7 @@ func (o terminal) Eval(args ...gp.Value) gp.Value {
 // turn left or left
 func turn(dir int) func(*Ant) {
     return func(ant *Ant) {
-        if ant.moves < MAX_MOVES {
+        if ant.moves < ant.maxMoves {
             ant.moves++
             ant.dir = mod(ant.dir + dir, 4)
             ant.grid[ant.row][ant.col] = TRAIL
@@ -78,7 +77,7 @@ func turn(dir int) func(*Ant) {
 
 // step forward and pick up food if in new cell
 func step(ant *Ant) {
-    if ant.moves < MAX_MOVES {
+    if ant.moves < ant.maxMoves {
         ant.moves++
         ant.row, ant.col = ant.grid.Next(ant.row, ant.col, ant.dir)
         if ant.grid[ant.row][ant.col] == FOOD { ant.eaten++ }
@@ -123,15 +122,25 @@ func (g Grid) Clone() Grid {
     return grid
 }
 
-// read the trail file to setup the grid
-func readTrail(file string) *Config {
-    f, err := os.Open(file)
+func checkErr(err error) {
     if err != nil {
         fmt.Println(err)
         os.Exit(1)
     }
+}
+
+// read the trail file to setup the grid
+func readTrail(file string) *Config {
+    f, err := os.Open(file)
+    checkErr(err)
     conf := Config{ grid: Grid{} }
     scanner := bufio.NewScanner(f)
+    // first line should have max no. of moves
+    scanner.Scan()
+    _, err = fmt.Sscan(scanner.Text(), &conf.maxMoves)
+    fmt.Println("max moves = ", conf.maxMoves)
+    checkErr(err)
+    // read the grid
     row := 0
     for scanner.Scan() {
         line := scanner.Bytes()
@@ -145,7 +154,8 @@ func readTrail(file string) *Config {
                 line[col] = TRAIL
             }
         }
-        conf.grid = append(conf.grid, line)
+        copy := append([]byte{}, line...)
+        conf.grid = append(conf.grid, copy)
         row++
     }
     f.Close()
@@ -156,6 +166,7 @@ func readTrail(file string) *Config {
 func newAnt(conf *Config) *Ant {
     grid := conf.grid.Clone()
     return &Ant{
+        maxMoves: conf.maxMoves,
         row: conf.startRow,
         col: conf.startCol,
         dir: conf.startDir,
@@ -167,7 +178,7 @@ func newAnt(conf *Config) *Ant {
 func run(conf *Config, code gp.Expr) *Ant {
     ant := newAnt(conf)
     runFunc := code.Eval().(func(*Ant))
-    for ant.moves < MAX_MOVES { runFunc(ant) }
+    for ant.moves < ant.maxMoves { runFunc(ant) }
     return ant
 }
 
@@ -180,15 +191,13 @@ func fitnessFunc(conf *Config) func(gp.Expr) (float64, bool) {
 }
 
 // new bubble plot
-func createPlot(label string, grid Grid, cellType byte, bgSize, fgSize float64) stats.Plot { 
+func createPlot(label string, grid Grid, cellType byte, size float64) stats.Plot { 
     plot := stats.NewPlot(label, len(grid)*len(grid[0]))
     plot.Lines.Bubbles.Show = true
     i := 0
     for y, row := range grid {
         for x, cell := range row {
-            size := bgSize
-            if cell == cellType { size = fgSize }
-            if (size > 0) {
+            if cell == cellType {
                 plot.Data[i] = [3]float64{ float64(x), float64(len(grid)-y), size }
                 i++
             }
@@ -201,7 +210,7 @@ func createPlot(label string, grid Grid, cellType byte, bgSize, fgSize float64) 
 // function to plot grid
 func plotGrid(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
-        return createPlot("food", c.grid, FOOD, 0.3, 1.4)
+        return createPlot("food", c.grid, FOOD, 1.4)
     }
 }
 
@@ -209,28 +218,29 @@ func plotGrid(c *Config) func(gp.Population) stats.Plot {
 func plotBest(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         ant := run(c, pop.Best().Code)
-        return createPlot("best", ant.grid, TRAIL, 0, 0.8)
+        return createPlot("best", ant.grid, TRAIL, 0.8)
     }
 }
 
 // build and run model
 func main() {
     var trailFile string
-    var threads, generations, popsize, depth int
+    var threads, generations, popsize, depth, size int
     var seed int64
     var plot, verbose bool
     flag.StringVar(&trailFile, "trail", "santafe_trail.txt", "trail definition file")
-	flag.IntVar(&threads, "threads", runtime.NumCPU(), "number of parallel threads")
-	flag.Int64Var(&seed, "seed", 0, "random seed - set randomly if <= 0")
-	flag.IntVar(&generations, "gens", 40, "maximum no. of generations")
-	flag.IntVar(&popsize, "popsize", 4000, "population size")
-	flag.IntVar(&depth, "depth", 7, "depth limit - or zero for none")
-	flag.BoolVar(&plot, "plot", false, "connect to gogpweb to plot statistics")
-	flag.BoolVar(&verbose, "v", false, "print out best individual so far")
+    flag.IntVar(&threads, "threads", runtime.NumCPU(), "number of parallel threads")
+    flag.Int64Var(&seed, "seed", 0, "random seed - set randomly if <= 0")
+    flag.IntVar(&generations, "gens", 40, "maximum no. of generations")
+    flag.IntVar(&popsize, "popsize", 4000, "population size")
+    flag.IntVar(&depth, "depth", 0, "depth limit - or zero for none")
+    flag.IntVar(&size, "size", 0, "size limit - or zero for none")
+    flag.BoolVar(&plot, "plot", false, "connect to gogpweb to plot statistics")
+    flag.BoolVar(&verbose, "v", false, "print out best individual so far")
     flag.Parse()
 
     gp.SetSeed(seed)
-	runtime.GOMAXPROCS(threads)
+    runtime.GOMAXPROCS(threads)
     config := readTrail(trailFile)
 
     pset := gp.CreatePrimSet(0)
@@ -256,10 +266,14 @@ func main() {
     if depth > 0 {
         problem.AddDecorator(gp.DepthLimit(depth))
     }
+    if size > 0 {
+        problem.AddDecorator(gp.SizeLimit(size))
+    }
+
     problem.PrintParams("== Artificial ant ==")
     fmt.Println()
 
-    logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.99 }
+    logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.999 }
     if verbose {
         logger.OnDone = func(best *gp.Individual) {
             ant := run(config, best.Code)
@@ -279,6 +293,4 @@ func main() {
         problem.Run(logger)
     }
 }
-
-
 
