@@ -215,49 +215,34 @@ func (s randomSel) Select(pop Population, num int) Population {
     return chosen
 }
 
-type decorBase struct { name string }
+// general limit decorator
+type limit struct {
+    name string
+    filter func(*Individual) bool
+}
 
-func (d decorBase) String() string { return d.name }
+func (d limit) Decorate(in, out *Individual) *Individual {
+    if d.filter(out) {
+        return in
+    } else {
+        return out
+    }
+}
 
-// SizeLimit returns a decorator which applies a static limit to the maximum expression size. 
+func (d limit) String() string { return d.name }
+
+// SizeLimit returns a decorator which returns the parent if the total size exceeds the max value. 
 func SizeLimit(max int) Decorator {
-    return sizeLimit{ decorBase{fmt.Sprintf("SizeLimit(%d)",max)}, max }
-}
-
-type sizeLimit struct {
-    decorBase
-    max int
-}
-
-// If the maxium size is exceeded, return the individual prior to variation.
-func (d sizeLimit) Decorate(in, out *Individual) *Individual {
-    if out.Size() > d.max {
-        return in
-    } else {
-        return out
+    return limit{
+        fmt.Sprintf("SizeLimit(%d)", max),
+        func(ind *Individual) bool { return ind.Size() > max },
     }
 }
 
-// DepthLimit returns a decorator which applies a static limit to the maximum tree depth.
+// DepthLimit returns a decorator which returns the parent if the depth exceeds the max value.
 func DepthLimit(max int) Decorator {
-    return depthLimit{ decorBase{fmt.Sprintf("DepthLimit(%d)",max)}, max }
-}
-
-type depthLimit struct {
-    decorBase
-    max int
-}
-
-// If the maxium depth is exceeded, return the individual prior to variation.
-func (d depthLimit) Decorate(in, out *Individual) *Individual {
-    if out.Depth() > d.max {
-        return in
-    } else {
-        return out
+    return limit{
+        fmt.Sprintf("DepthLimit(%d)", max),
+        func(ind *Individual) bool { return ind.Depth() > max },
     }
 }
-
-
-    
-
-
