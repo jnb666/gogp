@@ -12,10 +12,7 @@
 <script type="text/javascript" src="jquery.flot.bubbles.js"></script>
 <script type="text/javascript">
 $(function() {
-    var first = true;
-    var done = false;
     var running = false;
-    var generation = 0;
     var maxGen = 0;
     var wait = 500;
     var options = {
@@ -60,22 +57,21 @@ $(function() {
         );
     }
 
-    // get the stats and plot data until got generation no. gen
-    function fetch(gen) {
-        $.getJSON("/stats/" + generation,
-            function(data) { 
-                if (first) {
+    // get the stats for generation no. gen and plot data
+    function fetch(gen, first) {
+        $.getJSON("/stats/" + gen,
+            function(data) {
+                if (first) { 
+                    maxGen = data.MaxGen;
                     setHeaders(data.Headers);
-                    first = false;
                 }
-                updateStats(data.Stats);
-                $("#best").html(data.Best);
-                generation = data.Gen + 1;
-                maxGen = data.MaxGen;
-                if (data.Done) { done = true; }
-                if (generation < gen && !done) {
-                    setTimeout(function() { fetch(gen) }, wait);
+                if (data.Gen < gen && !data.Done) {
+                    // not available yet - poll
+                    setTimeout(function() { fetch(gen, false) }, wait);
                 } else {
+                    // got the data - update
+                    updateStats(data.Stats);
+                    $("#best").html(data.Best);
                     fetchPlot("#plot1", $("#choose-plot1").val());
                     fetchPlot("#plot2", $("#choose-plot2").val());
                 }
@@ -85,17 +81,14 @@ $(function() {
 
     // step to next generation
     function step() {
-        if (done) { return; }
         $.getJSON("/step",
-            function(isDone) {
-                if (isDone) {
-                    fetch(generation);
-                    done = true;
+            function(msg) {
+                fetch(msg.Gen+1, false);
+                if (msg.Done) {
                     running = false;
                     $("#doRun").text("run");
-                } else {
-                    fetch(generation+1);
-                    if (running) { setTimeout(step, wait); }
+                } else if (running) {
+                    setTimeout(step, wait);
                 }
             }
         );
@@ -131,11 +124,9 @@ $(function() {
 
     // get next run
     $("#doRestart").click(function() {
-        done = false;
-        generation = 0;
         $("#best").html("");
         $("#stats-grid").find("tr").remove();
-        $.getJSON("/start", step );
+        $.get("/start", function() { fetch(0, false) } );
     });
 
     // update data if selected new plot type
@@ -147,7 +138,7 @@ $(function() {
     });
 
     // update data on load
-    fetch(1);
+    fetch(0, true);
 });
 </script>
 </head>
