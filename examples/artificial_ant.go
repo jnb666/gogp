@@ -24,6 +24,7 @@ type Grid [][]byte
 type Config struct {
     startRow, startCol, startDir int
     maxMoves, totalFood int
+    plotRows, plotCols int
     grid Grid
 }
 
@@ -137,8 +138,8 @@ func readTrail(file string) *Config {
     scanner := bufio.NewScanner(f)
     // first line should have max no. of moves
     scanner.Scan()
-    _, err = fmt.Sscan(scanner.Text(), &conf.maxMoves)
-    fmt.Println("max moves = ", conf.maxMoves)
+    _, err = fmt.Sscan(scanner.Text(), &conf.maxMoves, &conf.plotRows, &conf.plotCols)
+    fmt.Println("max moves =", conf.maxMoves, "plot size =", conf.plotRows, conf.plotCols)
     checkErr(err)
     // read the grid
     row := 0
@@ -191,14 +192,14 @@ func fitnessFunc(conf *Config) func(gp.Expr) (float64, bool) {
 }
 
 // new bubble plot
-func createPlot(label string, grid Grid, cellType byte, size float64) stats.Plot { 
-    plot := stats.NewPlot(label, len(grid)*len(grid[0]))
-    plot.Lines.Bubbles.Show = true
+func createPlot(label string, grid Grid, rows, cols int, cellType byte, size float64) stats.Plot { 
+    plot := stats.NewPlot(label, rows*cols)
+    plot.Bubbles.Show = true
     i := 0
-    for y, row := range grid {
-        for x, cell := range row {
-            if cell == cellType {
-                plot.Data[i] = [3]float64{ float64(x), float64(len(grid)-y), size }
+    for y := 0; y < cols; y++ {
+        for x := 0;  x < rows; x++ {
+            if grid[y][x] == cellType {
+                plot.Data[i] = [3]float64{ float64(x), float64(rows-y), size }
                 i++
             }
         }
@@ -210,7 +211,12 @@ func createPlot(label string, grid Grid, cellType byte, size float64) stats.Plot
 // function to plot grid
 func plotGrid(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
-        return createPlot("food", c.grid, FOOD, 1.4)
+        plot := createPlot("food", c.grid, c.plotRows, c.plotCols, FOOD, 1.1)
+        plot.Color = "#00ff00"
+        plot.Bubbles.Type = "box"
+        plot.Data = append(plot.Data, [3]float64{-0.5, 0.5, 0.01})
+        plot.Data = append(plot.Data, [3]float64{float64(c.plotRows)-0.5, float64(c.plotCols)+0.5, 0.01})
+        return plot
     }
 }
 
@@ -218,7 +224,9 @@ func plotGrid(c *Config) func(gp.Population) stats.Plot {
 func plotBest(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         ant := run(c, pop.Best().Code)
-        return createPlot("best", ant.grid, TRAIL, 0.8)
+        plot := createPlot("best", ant.grid, c.plotRows, c.plotCols, TRAIL, 0.8)
+        plot.Color = "#ff0000"
+        return plot
     }
 }
 

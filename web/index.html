@@ -15,13 +15,20 @@ $(function() {
     var running = false;
     var maxGen = 0;
     var wait = 500;
-    var options = {
-        legend: { position: "se" },
-        xaxis:  { },
-        yaxis:  { autoscaleMargin: null },
-        colors: [ "#ff0000", "#0000ff", "#b0b0ff" ],
-        series: { bubbles: { active:true, show:false} }
-    };
+    var plotSel = [
+        {id:"Fit", text:"fitness"},
+        {id:"Size", text:"size"}, 
+        {id:"Depth", text:"depth"},
+        {id:"Plot", text:"custom"}
+    ];
+
+    function setOptions(chooser, defaultVal) {
+        var opts = $(chooser);
+        $.each(plotSel, function() {
+            opts.append($("<option />").val(this.id).text(this.text));
+        });
+        $(chooser).val(defaultVal);
+    }
 
     // set stats headers
     function setHeaders(headers) {
@@ -43,16 +50,43 @@ $(function() {
         }
     }
 
+    // custom bubble plots
+    function drawbubbleBox(ctx,serie,x,y,v,r,c,overlay){
+        ctx.fillStyle = c;
+        ctx.strokeStyle = c;
+        ctx.lineWidth = serie.bubbles.lineWidth;
+        if (serie.bubbles.fill) {
+            ctx.fillRect(x-r,y-r,2*r,2*r);
+        } else {
+            ctx.rect(x-r,y-r,2*r,2*r);   
+        }
+        if(serie.bubbles.bubblelabel.show) {drawbubbleLabel(ctx,serie,x,y,v); }
+    }  
+
     // get data and update the given plot
     function fetchPlot(id, field) {
         $.getJSON("/plot/" + field,
             function(data) {
-                options.xaxis.min = (field != "Plot") ? 0 : null;
-                options.xaxis.max = (field != "Plot") ? maxGen : null;
-                options.yaxis.min = options.xaxis.min; 
-                options.yaxis.max = (field == "Fit") ? 1 : null;
-                options.series.bubbles.show = data[0].lines.bubbles.show;
-                $.plot($(id), data, options);
+                var opts = {
+                    legend: { position: "se" },
+                    xaxis:  { },
+                    yaxis:  { autoscaleMargin: null },
+                    series: { bubbles: { active:true, show:false } }
+                };
+                if (field == "Plot") {
+                    for (var i = 0; i < data.length; i++) {
+                        var type = data[i].bubbles.type;
+                        if (type == "box") {
+                            data[i].bubbles.drawbubble = drawbubbleBox;
+                        }
+                    }
+                } else {
+                    opts.xaxis.min = 0;
+                    opts.xaxis.max = maxGen;
+                    opts.yaxis.min = 0;
+                    if (field == "Fit") { opts.yaxis.max = 1 }
+                }
+                $.plot($(id), data, opts);
             }
         );
     }
@@ -67,13 +101,14 @@ $(function() {
                 }
                 if (data.Gen < gen && !data.Done) {
                     // not available yet - poll
-                    setTimeout(function() { fetch(gen, false) }, wait);
+                    setTimeout(function() { fetch(gen) }, wait);
                 } else {
                     // got the data - update
                     updateStats(data.Stats);
                     $("#best").html(data.Best);
                     fetchPlot("#plot1", $("#choose-plot1").val());
                     fetchPlot("#plot2", $("#choose-plot2").val());
+                    fetchPlot("#plot3", $("#choose-plot3").val());
                 }
             }
         );
@@ -83,7 +118,7 @@ $(function() {
     function step() {
         $.getJSON("/step",
             function(msg) {
-                fetch(msg.Gen+1, false);
+                fetch(msg.Gen+1);
                 if (msg.Done) {
                     running = false;
                     $("#doRun").text("run");
@@ -126,7 +161,7 @@ $(function() {
     $("#doRestart").click(function() {
         $("#best").html("");
         $("#stats-grid").find("tr").remove();
-        $.get("/start", function() { fetch(0, false) } );
+        $.get("/start", function() { fetch(0) } );
     });
 
     // update data if selected new plot type
@@ -136,8 +171,13 @@ $(function() {
     $("#choose-plot2").change(function() {
         fetchPlot("#plot2", $("#choose-plot2").val());
     });
-
+    $("#choose-plot3").change(function() {
+        fetchPlot("#plot3", $("#choose-plot3").val());
+    });
     // update data on load
+    setOptions("#choose-plot1", "Plot");
+    setOptions("#choose-plot2", "Fit");
+    setOptions("#choose-plot3", "Size");    
     fetch(0, true);
 });
 </script>
@@ -149,32 +189,19 @@ $(function() {
   <td class="button-cell"><button id="doStep">step</button></td>
   <td class="button-cell"><button id="doRun">run</button></td>
   <td class="button-cell"><button id="doRestart">restart</button></td>
-  <td class="chooser-cell">plot 1:
-    <select id="choose-plot1">
-        <option value="Fit" selected>fitness</option>
-        <option value="Size">size</option>
-        <option value="Depth">depth</option>
-        <option value="Plot">custom</option>
-    </select>
-  </td>
-  <td class="chooser-cell">plot 2:
-    <select id="choose-plot2">
-        <option value="Fit">fitness</option>
-        <option value="Size" selected>size</option>
-        <option value="Depth">depth</option>
-        <option value="Plot">custom</option>
-    </select>
-  </td>
-  <td class="slider-cell">
-    <div id="slider"></div>
-    <div id="wait"></div>
-  </td>
+  <td class="chooser-cell">plot 1 <select id="choose-plot1"></select></td>
+  <td class="chooser-cell">plot 2 <select id="choose-plot2"></select></td>
+  <td class="chooser-cell">plot 3 <select id="choose-plot3"></select></td>
+  <td class="slider-cell"><div id="slider"></div><div id="wait"></div></td>
 </tr>
 </table>
 </div>
 
 <div id="plot1" class="plot1-container"></div>
-<div id="plot2" class="plot2-container"></div>
+<div class="plot-container-right">
+  <div id="plot2" class="plot2-container"></div>
+  <div id="plot3" class="plot3-container"></div>
+</div>
 
 <div class="best-container">
   <div class="best-header">

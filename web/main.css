@@ -18,15 +18,22 @@ table, th, td {
     padding: 2px 10px;
 }
 .plot1-container {
+    width: 500px;
+    height: 500px;
     clear: both;
-    width: 400px;
-    height: 400px;
+    float: left;
+}
+.plot-container-right {
     float: left;
 }
 .plot2-container {
-    width: 400px;
-    height: 400px;
-    float: left;
+    width: 333px;
+    height: 250px;
+}
+.plot3-container {
+    width: 333px;
+    height: 250px;
+    clear: both;
 }
 .best-container {
 	clear: both;
@@ -50,13 +57,13 @@ td.button-cell {
     padding: 4px;
 }
 td.chooser-cell {
-    width: 130px;
+    width: 120px;
     text-align: center;
     padding: 4px;
 }
 td.slider-cell {
     width: 150px;
-    padding: 4px;
+    padding: 6px;
 }
 button {
     width: 60px;
@@ -64,12 +71,12 @@ button {
 
 /* best candidate */
 div.best-header {
-    width: 770px;
+    width: 803px;
     background: #444;
     padding: 2px 3px;
 }
 div.best-box {
-    width: 770px;
+    width: 803px;
     height: 55px;    
     overflow-y: auto;
     font-size: 9pt;
@@ -85,7 +92,7 @@ div.tableContainer {
 	clear: both;
 	border: 1px solid #000;
 	overflow: hidden;
-	width: 774px;
+	width: 807px;
 }
 div.tableContainer table {
 	float: left;

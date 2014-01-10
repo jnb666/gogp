@@ -63,11 +63,13 @@ type Plot struct {
     Lines struct {
         Fill bool       `json:"fill"`
         LineWidth int   `json:"lineWidth"`
-        Bubbles struct {
-            Show   bool `json:"show"`
-        } `json:"bubbles"`
-    } `json:"lines"`
+    } `json:"lines"`      
+    Bubbles struct {
+        Show  bool      `json:"show"`
+        Type  string    `json:"type"`
+    } `json:"bubbles"`
     Data  [][3]float64  `json:"data"`
+    Color string        `json:"color"`
 }
 
 // MainLoop function runs a model repeatedly with given model.
@@ -286,8 +288,10 @@ func (l *Logger) RegisterPlot(plotter func(gp.Population) Plot) {
 func getStatsPlots(h []*Stats, name string) (lines []Plot, err error) {
     var val interface{}
     lines = make([]Plot, 3)
+    colors := []string{"#ff0000", "#0000ff", "#b0b0ff"}
     for i, field := range []string{"Max", "Avg", "Std"} {
         lines[i].Data = make([][3]float64, len(h))
+        lines[i].Color = colors[i]
         if field == "Std" {
             lines[i].Lines.Fill = true
             lines[i].Lines.LineWidth = 0

@@ -85,6 +85,7 @@ func fitnessFunc(trainSet []Point) func(gp.Expr) (float64, bool) {
 func plotTarget(trainSet []Point) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         plot := stats.NewPlot("Target", len(trainSet))
+        plot.Color = "#00ff00"
         for i, pt := range trainSet {
             plot.Data[i][0], plot.Data[i][1] = pt.x, pt.y
         }
@@ -96,6 +97,7 @@ func plotTarget(trainSet []Point) func(gp.Population) stats.Plot {
 func plotBest(trainSet []Point) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         plot := stats.NewPlot("Best", len(trainSet))
+        plot.Color = "#ff0000"
         code := pop.Best().Code
         for i, pt := range trainSet {
             plot.Data[i][0] = pt.x
