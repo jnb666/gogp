@@ -2,13 +2,11 @@ package main
 // artifical ant example
 
 import (
-    "os"
-    "bufio"
     "fmt"
-    "runtime"
     "flag"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
+    "github.com/jnb666/gogp/util"
 )
 
 const (
@@ -123,28 +121,17 @@ func (g Grid) Clone() Grid {
     return grid
 }
 
-func checkErr(err error) {
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
-}
-
 // read the trail file to setup the grid
 func readTrail(file string) *Config {
-    f, err := os.Open(file)
-    checkErr(err)
+    s := util.Open(file)
     conf := Config{ grid: Grid{} }
-    scanner := bufio.NewScanner(f)
-    // first line should have max no. of moves
-    scanner.Scan()
-    _, err = fmt.Sscan(scanner.Text(), &conf.maxMoves, &conf.plotRows, &conf.plotCols)
+    // first line has max no. of moves and plot dimensions
+    util.Read(s, &conf.maxMoves, &conf.plotRows, &conf.plotCols)
     fmt.Println("max moves =", conf.maxMoves, "plot size =", conf.plotRows, conf.plotCols)
-    checkErr(err)
     // read the grid
     row := 0
-    for scanner.Scan() {
-        line := scanner.Bytes()
+    for s.Scan() {
+        line := s.Bytes()
         for col, cell := range line {
             switch cell {
             case FOOD:
@@ -159,7 +146,6 @@ func readTrail(file string) *Config {
         conf.grid = append(conf.grid, copy)
         row++
     }
-    f.Close()
     return &conf
 }
 
@@ -211,7 +197,7 @@ func createPlot(label string, grid Grid, rows, cols int, cellType byte, size flo
 // function to plot grid
 func plotGrid(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
-        plot := createPlot("food", c.grid, c.plotRows, c.plotCols, FOOD, 1.1)
+        plot := createPlot("food", c.grid, c.plotRows, c.plotCols, FOOD, 1)
         plot.Color = "#00ff00"
         plot.Bubbles.Type = "box"
         plot.Data = append(plot.Data, [3]float64{-0.5, 0.5, 0.01})
@@ -224,7 +210,7 @@ func plotGrid(c *Config) func(gp.Population) stats.Plot {
 func plotBest(c *Config) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         ant := run(c, pop.Best().Code)
-        plot := createPlot("best", ant.grid, c.plotRows, c.plotCols, TRAIL, 0.8)
+        plot := createPlot("best", ant.grid, c.plotRows, c.plotCols, TRAIL, 0.75)
         plot.Color = "#ff0000"
         return plot
     }
@@ -232,25 +218,17 @@ func plotBest(c *Config) func(gp.Population) stats.Plot {
 
 // build and run model
 func main() {
+    // get options
+    var maxSize, maxDepth int
     var trailFile string
-    var threads, generations, popsize, depth, size int
-    var seed int64
-    var plot, verbose bool
-    flag.StringVar(&trailFile, "trail", "santafe_trail.txt", "trail definition file")
-    flag.IntVar(&threads, "threads", runtime.NumCPU(), "number of parallel threads")
-    flag.Int64Var(&seed, "seed", 0, "random seed - set randomly if <= 0")
-    flag.IntVar(&generations, "gens", 40, "maximum no. of generations")
-    flag.IntVar(&popsize, "popsize", 4000, "population size")
-    flag.IntVar(&depth, "depth", 0, "depth limit - or zero for none")
-    flag.IntVar(&size, "size", 0, "size limit - or zero for none")
-    flag.BoolVar(&plot, "plot", false, "connect to gogpweb to plot statistics")
-    flag.BoolVar(&verbose, "v", false, "print out best individual so far")
-    flag.Parse()
+    flag.IntVar(&maxSize, "size", 0, "maximum tree size - zero for none")
+    flag.IntVar(&maxDepth, "depth", 0, "maximum tree depth - zero for none")
+    flag.StringVar(&trailFile, "trail", "santafe_trail.txt", "trail definition file")    
+    opts := util.DefaultOptions
+    util.ParseFlags(&opts)
 
-    gp.SetSeed(seed)
-    runtime.GOMAXPROCS(threads)
+    // create primitive set
     config := readTrail(trailFile)
-
     pset := gp.CreatePrimSet(0)
     pset.Add(progN{ &gp.BaseFunc{"prog2", 2} })
     pset.Add(progN{ &gp.BaseFunc{"prog3", 3} })
@@ -259,45 +237,46 @@ func main() {
     pset.Add(Terminal("right", turn(1)))
     pset.Add(Terminal("step", step))
 
+    // setup model
     problem := &gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 1, 2),
-        PopSize: popsize,
+        PopSize: opts.PopSize,
         Fitness: fitnessFunc(config),
-        Offspring: gp.Tournament(7),
+        Offspring: gp.Tournament(opts.TournSize),
         Mutate: gp.MutUniform(gp.GenFull(pset, 0, 2)),
-        MutateProb: 0.2,
+        MutateProb: opts.MutateProb,
         Crossover: gp.CxOnePoint(),
-        CrossoverProb: 0.5,
-        Threads: threads,
+        CrossoverProb: opts.CrossoverProb,
+        Threads: opts.Threads,
     }
-    if depth > 0 {
-        problem.AddDecorator(gp.DepthLimit(depth))
+    if maxDepth > 0 {
+        problem.AddDecorator(gp.DepthLimit(maxDepth))
     }
-    if size > 0 {
-        problem.AddDecorator(gp.SizeLimit(size))
+    if maxSize > 0 {
+        problem.AddDecorator(gp.SizeLimit(maxSize))
     }
-
     problem.PrintParams("== Artificial ant ==")
-    fmt.Println()
 
-    logger := &stats.Logger{ MaxGen: generations, TargetFitness: 0.999 }
-    if verbose {
+    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    if opts.Verbose {
         logger.OnDone = func(best *gp.Individual) {
             ant := run(config, best.Code)
             fmt.Println(ant.grid)            
         }
     }
 
-    if plot {
+    // run
+    if opts.Plot {
         logger.RegisterPlot(plotGrid(config)) 
         logger.RegisterPlot(plotBest(config)) 
         go stats.MainLoop(problem, logger)
         stats.StartBrowser("http://localhost:8080")
         logger.ListenAndServe(":8080", "../web")
     } else {
+        fmt.Println()
         logger.PrintStats = true
-        logger.PrintBest = verbose
+        logger.PrintBest = opts.Verbose
         problem.Run(logger)
     }
 }

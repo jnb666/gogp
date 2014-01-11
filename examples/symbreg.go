@@ -4,61 +4,27 @@ package main
 // Use trainset.py to generate this file from an arbitrary expression.
 
 import (
-    "os"
-    "bufio"
     "fmt"
     "flag"
-    "strings"
-    "runtime"
-    "runtime/pprof"
     "math/rand"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
     "github.com/jnb666/gogp/num"
+    "github.com/jnb666/gogp/util"
 )
-
-type Config struct {
-    tournSize, maxSize, maxDepth, maxGen int
-    targetFitness float64
-    datafile, cpuprofile string
-    plot, verbose bool
-    seed int64
-}
 
 type Point struct { x, y float64 }
 
 // read data file
 func getData(filename string) (ERCmin, ERCmax int, trainSet []Point) {
-    file, err := os.Open(filename)
-    defer file.Close()
-    checkErr(err)
-    scanner := bufio.NewScanner(file)
-    // first line has params for random constant generation
-    getLine(scanner, &ERCmin, &ERCmax)
-    // rest are x and y points
+    s := util.Open(filename)
+    util.Read(s, &ERCmin, &ERCmax)
     trainSet = []Point{}
     var p Point
-    for getLine(scanner, &p.x, &p.y) {
+    for util.Read(s, &p.x, &p.y) {
         trainSet = append(trainSet, p)
     }
     return
-}
-
-func getLine(s *bufio.Scanner, item1, item2 interface{}) bool {
-    if !s.Scan() { return false }
-    items := strings.Split(s.Text(), "\t")
-    _, err := fmt.Sscan(items[0], item1)
-    checkErr(err)
-    _, err = fmt.Sscan(items[1], item2)
-    checkErr(err)
-    return true
-}
-
-func checkErr(err error) {
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
-    }
 }
 
 // function to generate the random constant generator function
@@ -107,50 +73,47 @@ func plotBest(trainSet []Point) func(gp.Population) stats.Plot {
     }
 }
 
-// initialise model
-func initModel() (problem *gp.Model, args *Config, trainSet []Point) {
-    var ercMin, ercMax int
-    problem = &gp.Model{}
-    args = getArgs(problem)
-    ercMin, ercMax, trainSet = getData(args.datafile)
+// main GP routine
+func main() {
+    // get options
+    var maxSize, maxDepth int
+    var dataFile string
+    flag.IntVar(&maxSize, "size", 0, "maximum tree size - zero for none")
+    flag.IntVar(&maxDepth, "depth", 0, "maximum tree depth - zero for none")
+    flag.StringVar(&dataFile, "trainset", "poly.dat", "file with training function")
+    opts := util.DefaultOptions
+    util.ParseFlags(&opts)
 
+    // create primitive set
+    ercMin, ercMax, trainSet := getData(dataFile)
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div)
     pset.Add(num.Ephemeral("ERC", ercGen(ercMin, ercMax)))
 
-    problem.PrimitiveSet = pset
-    problem.Generator = gp.GenRamped(pset, 1, 3)
-    problem.Fitness = fitnessFunc(trainSet)
-    problem.Offspring = gp.Tournament(args.tournSize)
-    problem.Mutate = gp.MutUniform(gp.GenRamped(pset, 0, 2))
-    problem.Crossover = gp.CxOnePoint()
-    if args.maxDepth > 0 {
-        problem.AddDecorator(gp.DepthLimit(args.maxDepth))
+    // setup model
+    problem := &gp.Model{
+        PrimitiveSet: pset,
+        Generator: gp.GenRamped(pset, 1, 3),
+        PopSize: opts.PopSize,
+        Fitness: fitnessFunc(trainSet),
+        Offspring: gp.Tournament(opts.TournSize),
+        Mutate: gp.MutUniform(gp.GenGrow(pset, 0, 2)),
+        MutateProb: opts.MutateProb,
+        Crossover: gp.CxOnePoint(),
+        CrossoverProb: opts.CrossoverProb,
+        Threads: opts.Threads,
     }
-    if args.maxSize > 0 { 
-        problem.AddDecorator(gp.SizeLimit(args.maxSize))
+    if maxDepth > 0 {
+        problem.AddDecorator(gp.DepthLimit(maxDepth))
     }
-    problem.PrintParams("== GP Symbolic Regression for ", args.datafile, "==")
-    return
-}
+    if maxSize > 0 { 
+        problem.AddDecorator(gp.SizeLimit(maxSize))
+    }
+    problem.PrintParams("== GP Symbolic Regression for ", dataFile, "==")
 
-// main GP routine
-func main() {
-    problem, args, trainSet := initModel()
-    logger := &stats.Logger{ MaxGen: args.maxGen, TargetFitness: args.targetFitness }
-	runtime.GOMAXPROCS(problem.Threads)
-    gp.SetSeed(args.seed)
-
-	if args.cpuprofile != "" {
-		file, err := os.Create(args.cpuprofile)
-        checkErr(err)
-    	fmt.Println("writing CPU profile data to ", args.cpuprofile)
-    	pprof.StartCPUProfile(file)
-    	defer pprof.StopCPUProfile()
-	}
-
-    if args.plot {
-        // run using browser interface
+    // run
+    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    if opts.Plot {
         gp.GraphDPI = "60"
         logger.RegisterPlot(plotTarget(trainSet)) 
         logger.RegisterPlot(plotBest(trainSet))
@@ -158,33 +121,10 @@ func main() {
         stats.StartBrowser("http://localhost:8080")
         logger.ListenAndServe(":8080", "../web")
     } else {
-        // cmd line run
         fmt.Println()
         logger.PrintStats = true
-        logger.PrintBest = args.verbose
+        logger.PrintBest = opts.Verbose
         problem.Run(logger)
     }
 }
-
-// process cmd line flags and read input file
-func getArgs(m *gp.Model) *Config {
-    args := &Config{}  
-	flag.IntVar(&args.maxGen, "gens", 40, "maximum no. of generations")
-	flag.Float64Var(&args.targetFitness, "target", 0.99, "target fitness")
-	flag.IntVar(&args.tournSize, "tournsize", 5, "tournament size")
-	flag.IntVar(&args.maxSize, "size", 0, "maximum tree size - zero for none")
-	flag.IntVar(&args.maxDepth, "depth", 0, "maximum tree depth - zero for none")
-	flag.IntVar(&m.PopSize, "popsize", 500, "population size")
-	flag.IntVar(&m.Threads, "threads", runtime.NumCPU(), "number of parallel threads")
-	flag.Float64Var(&m.CrossoverProb, "cxprob", 0.5, "crossover probability")
-	flag.Float64Var(&m.MutateProb, "mutprob", 0.2, "mutation probability")
-	flag.Int64Var(&args.seed, "seed", 0, "random seed - set randomly if <= 0")
-	flag.StringVar(&args.datafile, "trainset", "poly.dat", "file with training function")
-	flag.BoolVar(&args.plot, "plot", false, "connect to gogpweb to plot statistics")
-	flag.BoolVar(&args.verbose, "v", false, "print out best individual so far")
-	flag.StringVar(&args.cpuprofile, "cpuprofile", "", "write cpu profile to file")
-	flag.Parse()
-    return args
-}
-
 

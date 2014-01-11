@@ -5,11 +5,10 @@ package main
 import (
     "fmt"
     "math"
-    "flag"
-    "runtime"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
     "github.com/jnb666/gogp/boolean"
+    "github.com/jnb666/gogp/util"
 )
 
 const PARITY_FANIN = 6
@@ -49,16 +48,8 @@ func getFitnessFunc() func(gp.Expr) (float64,bool) {
 
 // main GP routine
 func main() {
-    var threads, generations, popsize int
-    var seed int64
-    var plot, verbose bool
-	flag.IntVar(&threads, "threads", runtime.NumCPU(), "number of parallel threads")
-	flag.Int64Var(&seed, "seed", 0, "random seed - set randomly if <= 0")
-	flag.IntVar(&generations, "gens", 40, "maximum no. of generations")
-	flag.IntVar(&popsize, "popsize", 1000, "population size")
-	flag.BoolVar(&plot, "plot", false, "connect to gogpweb to plot statistics")
-	flag.BoolVar(&verbose, "v", false, "print out best individual so far")
-    flag.Parse()
+    opts := util.DefaultOptions
+    util.ParseFlags(&opts)
 
     pset := gp.CreatePrimSet(PARITY_FANIN)
     pset.Add(boolean.And, boolean.Or, boolean.Xor, boolean.Not, boolean.True, boolean.False)
@@ -66,28 +57,26 @@ func main() {
     problem := &gp.Model{
         PrimitiveSet: pset,
         Generator: gp.GenFull(pset, 3, 5),
-        PopSize: popsize,
+        PopSize: opts.PopSize,
         Fitness: getFitnessFunc(),
-        Offspring: gp.Tournament(3),
+        Offspring: gp.Tournament(opts.TournSize),
         Mutate: gp.MutUniform(gp.GenGrow(pset, 0, 2)),
-        MutateProb: 0.2,
+        MutateProb: opts.MutateProb,
         Crossover: gp.CxOnePoint(),
-        CrossoverProb: 0.5,
-        Threads: threads,
+        CrossoverProb: opts.CrossoverProb,
+        Threads: opts.Threads,
     }
     problem.PrintParams("== Even parity problem for", PARITY_FANIN, "inputs ==")
-    gp.SetSeed(seed)
-	runtime.GOMAXPROCS(threads)
-    logger := &stats.Logger{ MaxGen: generations, TargetFitness: TARGET }
 
-    if plot {
+    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    if opts.Plot {
         go stats.MainLoop(problem, logger)
         stats.StartBrowser("http://localhost:8080")
         logger.ListenAndServe(":8080", "../web")
     } else {
         fmt.Println()
         logger.PrintStats = true
-        logger.PrintBest = verbose
+        logger.PrintBest = opts.Verbose
         problem.Run(logger)
     }
 }
