@@ -1,7 +1,7 @@
 package gp
 import (
     "strings"
-    "math/rand"
+    "github.com/jnb666/gogp/rand"
 )
 
 // The Value type is defined as an empty interface hence any type can be used for a specific model.

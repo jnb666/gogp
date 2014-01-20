@@ -1,9 +1,9 @@
 // gogp is a library for Koza style genetic programming in Go.
 package gp
 import (
-    "math/rand"
     "fmt"
     "reflect"
+    "github.com/jnb666/gogp/rand"
 )
 
 // interface for selecting individuals from population, should use clone to make a deep copy

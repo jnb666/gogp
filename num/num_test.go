@@ -1,9 +1,9 @@
 package num
 import (
 	"testing"
-    "math/rand"
     "math"
     "github.com/jnb666/gogp/gp"
+    "github.com/jnb666/gogp/rand"
 )
 
 var (
@@ -75,7 +75,7 @@ func TestGenerate(t *testing.T) {
     pset := initPset(false)
     pset.Add(V(0), V(1))
     gen := gp.GenRamped(pset, 1, 3)
-    gp.SetSeed(0)
+    rand.Seed(0)
     for i:=0; i<10; i++ {
         ind := gen.Generate()
         res := ind.Code.Eval(V(6), V(7))
@@ -89,7 +89,7 @@ func TestEphemeral(t *testing.T) {
     erc := Ephemeral("ERC", func()V { return V(rand.Intn(10)) })
     pset.Add(erc, erc, erc)
     gen := gp.GenFull(pset, 1, 3)
-    gp.SetSeed(2)
+    rand.Seed(2)
     ind := gen.Generate()
     t.Log(ind.Code, ind.Code.Format())
     val := ind.Code.Eval(V(6), V(7))
@@ -155,7 +155,7 @@ func TestCrossover(t *testing.T) {
 
 // test graphviz functions
 func TestGraph(t *testing.T) {
-    gp.SetSeed(1)
+    rand.Seed(1)
     pset := initPset(true)
     exprs := testExprs(pset)
     t.Log(exprs[2], exprs[2].Format())
@@ -165,8 +165,3 @@ func TestGraph(t *testing.T) {
     if (err != nil) { t.Error(err) }
     t.Log(string(data))
 }
-
-
-
-
-

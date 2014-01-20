@@ -5,6 +5,7 @@ import (
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/num"
     "github.com/jnb666/gogp/stats"
+    "github.com/jnb666/gogp/rand"
 )
 
 // calc least squares difference and return as normalised fitness from 0->1
@@ -19,7 +20,7 @@ func getFitness(code gp.Expr) (float64, bool) {
 }
 
 func ExampleModel() {
-    gp.SetSeed(1)
+    rand.Seed(1)
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg, num.V(0), num.V(1))
 

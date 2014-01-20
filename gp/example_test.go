@@ -5,6 +5,7 @@ import (
     "fmt"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/num"
+    "github.com/jnb666/gogp/rand"
 )
 
 type eval struct {}
@@ -22,7 +23,7 @@ func (e eval) GetFitness(code gp.Expr) (float64, bool) {
 
 func Example_gp() {
     // create initial population
-    gp.SetSeed(1)
+    rand.Seed(1)
     pset := gp.CreatePrimSet(1, "x")
     pset.Add(num.Add, num.Sub, num.Mul, num.Div, num.Neg, num.V(0), num.V(1))
     generator :=  gp.GenFull(pset, 1, 3)

@@ -33,11 +33,6 @@ type Ant struct {
     grid Grid
 }
 
-// positive modulus
-func mod(a, b int) int {
-    return (a % b + b) % b
-}
-
 // execute each of args in sequence
 type progN struct { *gp.BaseFunc }
 
@@ -68,7 +63,7 @@ func turn(dir int) func(*Ant) {
     return func(ant *Ant) {
         if ant.moves < ant.maxMoves {
             ant.moves++
-            ant.dir = mod(ant.dir + dir, 4)
+            ant.dir = util.Mod(ant.dir + dir, 4)
             ant.grid[ant.row][ant.col] = TRAIL
         }
     }
@@ -101,8 +96,8 @@ func (o ifFood) Eval(args ...gp.Value) gp.Value {
 // grid methods
 func (g Grid) Next(row, col, dir int) (nRow, nCol int) {
     rows, cols := len(g), len(g[0])
-    nRow = mod(row + []int{1, 0, -1, 0}[dir], rows)
-    nCol = mod(col + []int{0, 1, 0, -1}[dir], cols)
+    nRow = util.Mod(row + []int{1, 0, -1, 0}[dir], rows)
+    nCol = util.Mod(col + []int{0, 1, 0, -1}[dir], cols)
     return
 }
 
@@ -268,8 +263,7 @@ func main() {
 
     // run
     if opts.Plot {
-        logger.RegisterPlot(plotGrid(config)) 
-        logger.RegisterPlot(plotBest(config)) 
+        logger.RegisterPlot(plotGrid(config), plotBest(config)) 
         go stats.MainLoop(problem, logger)
         stats.StartBrowser("http://localhost:8080")
         logger.ListenAndServe(":8080", "../web")
