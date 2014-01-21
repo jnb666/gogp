@@ -3,7 +3,7 @@ package gp
 import (
     "fmt"
     "reflect"
-    "github.com/jnb666/gogp/rand"
+    "math/rand"
 )
 
 // interface for selecting individuals from population, should use clone to make a deep copy

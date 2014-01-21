@@ -6,7 +6,7 @@ import (
     "bufio"
     "flag"
     "runtime"
-    "github.com/jnb666/gogp/rand"
+    "github.com/jnb666/gogp/gp"
 )
 
 // Options struct holds global configuration options
@@ -22,7 +22,7 @@ var DefaultOptions = Options{
     MaxGen: 40,
     PopSize: 500,
     TournSize: 7,
-    TargetFitness: 0.99,
+    TargetFitness: 0.9999,
     Threads: runtime.NumCPU(),
     CrossoverProb: 0.5,
     MutateProb: 0.2,
@@ -41,7 +41,7 @@ func ParseFlags(opts *Options) {
     flag.BoolVar(&opts.Plot, "plot", opts.Plot, "serve plot data via http")
     flag.BoolVar(&opts.Verbose, "v", opts.Verbose, "print out best individual so far")
     flag.Parse()
-    rand.Seed(opts.Seed)
+    gp.SetSeed(opts.Seed)
     runtime.GOMAXPROCS(opts.Threads)
 }
 

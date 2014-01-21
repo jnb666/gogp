@@ -1,7 +1,9 @@
 package gp
 import (
     "fmt"
-    "github.com/jnb666/gogp/rand"
+    "math/rand"
+    "math/big"
+    crand "crypto/rand"
 )
 
 // A Population is a slice of individuals. Implementations of the Selection interface are 
@@ -123,4 +125,14 @@ func randomOp(list []Opcode) Opcode {
     return list[rand.Intn(len(list))]
 }
 
-
+// SetSeed sets the random number seed to seed, or to a random value if seed is <= 0
+func SetSeed(seed int64) int64 {
+    if seed <= 0 {
+        max := big.NewInt(2<<31-1)
+        rseed, _ := crand.Int(crand.Reader, max)
+        seed = rseed.Int64()
+    }
+    fmt.Println("set random seed:", seed)
+    rand.Seed(seed)
+    return seed
+}

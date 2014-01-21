@@ -5,8 +5,8 @@ package main
 import (
     "fmt"
     "flag"
-    "math/rand"
     "strings"
+    "math/rand"
     "github.com/jnb666/gogp/gp"
     "github.com/jnb666/gogp/stats"
     "github.com/jnb666/gogp/util"
@@ -18,26 +18,19 @@ var (
     ColorsLC = []byte{'+', 'r', 'g', 'b'}
 )
 
-// grid of cells
+// grid of cells and other global vars
 type Grid struct {
     colors [][]byte
     ants   []*Ant
+    ant    *Ant
+    rng    *rand.Rand
     steps, maxMoves int
 }
 
-// ant data
+// per ant data
 type Ant struct {
-    id, row, col, carrying, moves int
+    row, col, carrying, moves int
     pickupRow, pickupCol int
-}
-
-// print out ant info
-func (ant Ant) String() string {
-    text := fmt.Sprintf("ant %d: at %d,%d", ant.id, ant.col, ant.row)
-    if ant.carrying >= 0 {
-        text += fmt.Sprintf(" carrying %d", ant.carrying)
-    }
-    return text
 }
 
 // get ant at given location or nil if none
@@ -76,9 +69,9 @@ func (g *Grid) clone() *Grid {
         grid.colors[row] = append([]byte{}, line...)
     }
     grid.ants = make([]*Ant, len(g.ants))
-    for i, ptr := range g.ants {
-        ant := *ptr
-        grid.ants[i] = &ant
+    for i, ant := range g.ants {
+        grid.ants[i] = new(Ant)
+        *(grid.ants[i]) = *ant
     }
     return &grid
 }
@@ -113,7 +106,7 @@ func readGrid(file string) *Grid {
     // read initial ant positions
     grid.ants = make([]*Ant, numAnts)
     for i := range grid.ants {
-        ant := Ant{ id:i, carrying:-1 }
+        ant := Ant{ carrying:-1 }
         util.Read(s, &ant.col, &ant.row)
         grid.ants[i] = &ant
     }
@@ -129,10 +122,10 @@ func readGrid(file string) *Grid {
 // terminal set
 type terminal struct {
     *gp.BaseFunc
-    fn func(*Grid,int)int
+    fn func(*Grid)int
 }
 
-func Terminal(name string, fn func(*Grid,int)int) gp.Opcode {
+func Terminal(name string, fn func(*Grid)int) gp.Opcode {
     return terminal{&gp.BaseFunc{name,0}, fn}
 }
 
@@ -140,124 +133,101 @@ func (o terminal) Eval(args ...gp.Value) gp.Value {
     return o.fn
 }
 
-// current location of ant
-var X = Terminal("x", func(g *Grid, id int)int { return g.ants[id].col })
-var Y = Terminal("y", func(g *Grid, id int)int { return g.ants[id].row })
-
-// color of grain we are carrying
-var CARRYING = Terminal("carrying", func(g *Grid, id int)int { return g.ants[id].carrying })
-
-// color of grain on current square
-var COLOR = Terminal("color", func(g *Grid, id int)int { return g.color(g.ants[id].row, g.ants[id].col) })
-
 // move in given direction
-func move(dir int) func(*Grid,int)int {
-    return func(g *Grid, id int) int {
-        ant := g.ants[id]
-        if ant.moves < g.maxMoves {
-            ant.moves++
-            row, col := g.next(ant.row, ant.col, dir)
+func move(dir int) func(*Grid) int {
+    return func(g *Grid) int {
+        if g.ant.moves < g.maxMoves {
+            g.ant.moves++
+            row, col := g.next(g.ant.row, g.ant.col, dir)
             if g.at(row, col) == nil {
-                ant.row, ant.col = row, col
+                g.ant.row, g.ant.col = row, col
             }
         }
-        return g.color(ant.row, ant.col)
+        return g.color(g.ant.row, g.ant.col)
     }
 }
-var GO_N = Terminal("go-n", move(0))
-var GO_E = Terminal("go-e", move(1))
-var GO_S = Terminal("go-s", move(2))
-var GO_W  = Terminal("go-w", move(3))
-var GO_RAND = Terminal("go-rand", func (g *Grid, id int) int { return move(rand.Intn(4))(g,id) })
 
 // pick up grain at current pos if not currently carrying anything
-func pickUp(g *Grid, id int) int {
-    ant := g.ants[id]
-    color := g.color(ant.row, ant.col)
-    if ant.moves < g.maxMoves && ant.carrying < 0 && color >= 0 {
-        ant.moves++
-        // fmt.Printf("%d: picks up %d @ %d,%d\n", ant.id, color, ant.col, ant.row)
-        ant.carrying = color
-        ant.pickupRow, ant.pickupCol = ant.row, ant.col
-        g.colors[ant.row][ant.col] = '.'
+func pickUp(g *Grid) int {
+    color := g.color(g.ant.row, g.ant.col)
+    if g.ant.moves < g.maxMoves && g.ant.carrying < 0 && color >= 0 {
+        g.ant.moves++
+        g.ant.carrying = color
+        g.ant.pickupRow, g.ant.pickupCol = g.ant.row, g.ant.col
+        g.colors[g.ant.row][g.ant.col] = '.'
         return -1
     }
     return color
 }
-var PICKUP = Terminal("pickup", pickUp)
 
 // function set
 // if arg0 <= arg1 then arg2 else arg3
 type iflte struct { *gp.BaseFunc }
 
 func (o iflte) Eval(arg ...gp.Value) gp.Value {
-    return func(g *Grid, id int) int {
-        if arg[0].(func(*Grid,int)int)(g,id) <= arg[1].(func(*Grid,int)int)(g,id) {
-            return arg[2].(func(*Grid,int)int)(g,id)
+    return func(g *Grid) int {
+        if arg[0].(func(*Grid)int)(g) <= arg[1].(func(*Grid)int)(g) {
+            return arg[2].(func(*Grid)int)(g)
         } else {
-            return arg[3].(func(*Grid,int)int)(g,id)
+            return arg[3].(func(*Grid)int)(g)
         }
     }
 }
-var IFLTE = iflte{ &gp.BaseFunc{"iflte", 4} }
 
 // if arg0 < 0 then arg1 else arg2
 type ifltz struct { *gp.BaseFunc }
 
 func (o ifltz) Eval(arg ...gp.Value) gp.Value {
-    return func(g *Grid, id int) int {
-        if arg[0].(func(*Grid,int)int)(g,id) < 0 {
-            return arg[1].(func(*Grid,int)int)(g,id)
+    return func(g *Grid) int {
+        if arg[0].(func(*Grid)int)(g) < 0 {
+            return arg[1].(func(*Grid)int)(g)
         } else {
-            return arg[2].(func(*Grid,int)int)(g,id)
+            return arg[2].(func(*Grid)int)(g)
         }
     }
 }
-var IFLTZ = ifltz{ &gp.BaseFunc{"ifltz", 3} }
 
 // if carrying a grain and current position is empty drop and call arg0, else call arg1
 type ifdrop struct { *gp.BaseFunc }
 
 func (o ifdrop) Eval(arg ...gp.Value) gp.Value {
-    return func(g *Grid, id int) int {
-        ant := g.ants[id]
-        if ant.moves < g.maxMoves && ant.carrying >= 0 && g.color(ant.row, ant.col) < 0 {
-            // fmt.Printf("%d: drops %d @ %d,%d\n", ant.id, ant.carrying, ant.col, ant.row)
-            ant.moves++
-            g.colors[ant.row][ant.col] = Colors[ant.carrying+1]
-            ant.carrying = -1
-            return arg[0].(func(*Grid,int)int)(g,id)
+    return func(g *Grid) int {
+        if g.ant.carrying >= 0 && g.color(g.ant.row, g.ant.col) < 0 {
+            if g.ant.moves < g.maxMoves { 
+                g.ant.moves++
+                g.colors[g.ant.row][g.ant.col] = Colors[g.ant.carrying+1]
+                g.ant.carrying = -1
+            }
+            return arg[0].(func(*Grid)int)(g)
         } else {
-            return arg[1].(func(*Grid,int)int)(g,id)
+            return arg[1].(func(*Grid)int)(g)
         }
     }
 }
-var IFDROP = ifdrop{ &gp.BaseFunc{"ifdrop", 2} }
 
 // run the code - step each ant in turn
 func run(g *Grid, code gp.Expr) *Grid {
-    runFunc := code.Eval().(func(*Grid,int)int)
+    runFunc := code.Eval().(func(*Grid)int)
     grid := g.clone()
-    fmt.Println("*BEFORE*", code)
-    fmt.Println(grid)
+    // always use same random number set so we get a consistent fitness score
+    grid.rng = rand.New(rand.NewSource(1))
     for i := 0; i < grid.steps; i++ {
-        for j, ant := range grid.ants {
-            if ant.moves < grid.maxMoves {
-                runFunc(grid, j)
+        for id := range grid.ants {
+            grid.ant = grid.ants[id]
+            if grid.ant.moves < grid.maxMoves {
+                runFunc(grid)
             }
         }
     }
-    fmt.Println("*AFTER*")
-    fmt.Println(grid)
     return grid
 }
 
 // convert color and column to fitness
 func fitnessVal(color int, xpos int) (fit int) {
     switch color {
-        case 0: fit = xpos+1
+        case 0: fit = 3*(xpos+1)
         case 1: fit = 2*(xpos+1)
-        case 2: fit = 3*(xpos+1)
+        case 2: fit = xpos+1
     }
     return
 }
@@ -303,9 +273,7 @@ func fitnessFunc(g *Grid) func(gp.Expr) (float64, bool) {
             }
         }
         // scale fitness to 0 to 1 range
-        normFit := 100/float64(fit)
-        fmt.Println(code.Format(), fit)
-        return normFit, true
+        return 100/float64(fit), true
     }
 }
 
@@ -361,14 +329,6 @@ func plotAnts(g *Grid) []func(gp.Population)stats.Plot {
     return fn
 }
 
-type genProxy struct { expr gp.Expr }
-
-func (g genProxy) String() string { return "genProxy" }
-
-func (g genProxy) Generate() *gp.Individual {
-    return &gp.Individual{Code: g.expr}
-}
-
 // build and run model
 func main() {
     // get options
@@ -383,17 +343,24 @@ func main() {
     // create primitive set
     grid := readGrid(configFile)
     pset := gp.CreatePrimSet(0)
-    pset.Add(X, Y, CARRYING, COLOR, GO_N, GO_E, GO_S, GO_W, GO_RAND, 
-             PICKUP, IFLTE, IFLTZ, IFDROP)
+    pset.Add(Terminal("x", func(g *Grid)int { return g.ant.col }))
+    pset.Add(Terminal("y", func(g *Grid)int { return g.ant.row }))
+    pset.Add(Terminal("carrying", func(g *Grid)int { return g.ant.carrying }))
+    pset.Add(Terminal("color", func(g *Grid)int { return g.color(g.ant.row, g.ant.col) }))
+    pset.Add(Terminal("go-n", move(0)))
+    pset.Add(Terminal("go-e", move(1)))
+    pset.Add(Terminal("go-s", move(2)))
+    pset.Add(Terminal("go-w", move(3)))
+    pset.Add(Terminal("go-rand", func (g *Grid) int { return move(g.rng.Intn(4))(g) }))
+    pset.Add(Terminal("pickup", pickUp))
+    pset.Add(iflte{ &gp.BaseFunc{"iflte", 4} })
+    pset.Add(ifltz{ &gp.BaseFunc{"ifltz", 3} })
+    pset.Add(ifdrop{ &gp.BaseFunc{"ifdrop", 2} })
 
     // setup model
-    // gen := gp.GenFull(pset, 1, 2)
-    gen := genProxy { gp.Expr{ IFLTE, GO_W, IFDROP, GO_N, IFLTE, GO_RAND, COLOR, Y, COLOR,
-                               IFLTE, X, COLOR, COLOR, IFDROP, CARRYING, PICKUP, GO_RAND } }
-
     problem := &gp.Model{
         PrimitiveSet: pset,
-        Generator: gen,
+        Generator: gp.GenFull(pset, 1, 2),
         PopSize: opts.PopSize,
         Fitness: fitnessFunc(grid),
         Offspring: gp.Tournament(opts.TournSize),
@@ -413,7 +380,7 @@ func main() {
 
     logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
     if opts.Verbose {
-        logger.OnStep = func(best *gp.Individual) {
+        logger.OnDone = func(best *gp.Individual) {
             g := run(grid, best.Code)
             fmt.Println(g)     
         }
@@ -433,4 +400,3 @@ func main() {
         problem.Run(logger)
     }
 }
-

@@ -2,8 +2,8 @@ package num
 import (
 	"testing"
     "math"
+    "math/rand"
     "github.com/jnb666/gogp/gp"
-    "github.com/jnb666/gogp/rand"
 )
 
 var (
@@ -62,7 +62,7 @@ func TestEval(t *testing.T) {
     pset := initPset(true)
     exprs := testExprs(pset)
     expect := []V{13, 25, 10.5, 0, 6}
-    rand.Seed(1)
+    gp.SetSeed(1)
     for i, expect := range expect {
         val := exprs[i].Eval(V(3), V(4))
         t.Log(exprs[i], "(3,4) ", exprs[i].Format(), " => ", val)
@@ -75,7 +75,7 @@ func TestGenerate(t *testing.T) {
     pset := initPset(false)
     pset.Add(V(0), V(1))
     gen := gp.GenRamped(pset, 1, 3)
-    rand.Seed(0)
+    gp.SetSeed(0)
     for i:=0; i<10; i++ {
         ind := gen.Generate()
         res := ind.Code.Eval(V(6), V(7))
@@ -89,7 +89,7 @@ func TestEphemeral(t *testing.T) {
     erc := Ephemeral("ERC", func()V { return V(rand.Intn(10)) })
     pset.Add(erc, erc, erc)
     gen := gp.GenFull(pset, 1, 3)
-    rand.Seed(2)
+    gp.SetSeed(2)
     ind := gen.Generate()
     t.Log(ind.Code, ind.Code.Format())
     val := ind.Code.Eval(V(6), V(7))
@@ -122,7 +122,7 @@ func TestMutate(t *testing.T) {
     gen := genProxy{ add }
     t.Log("mutate: ", before.Code ,"plus", gen.Generate().Code)
     mut := gp.MutUniform(gen)
-    rand.Seed(1)
+    gp.SetSeed(1)
     for i:=0; i<10; i++ {
         after := mut.Variate(gp.Population{before.Clone()})
         t.Log("becomes:", after[0])
@@ -155,7 +155,7 @@ func TestCrossover(t *testing.T) {
 
 // test graphviz functions
 func TestGraph(t *testing.T) {
-    rand.Seed(1)
+    gp.SetSeed(1)
     pset := initPset(true)
     exprs := testExprs(pset)
     t.Log(exprs[2], exprs[2].Format())
