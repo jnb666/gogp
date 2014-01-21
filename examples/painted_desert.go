@@ -95,6 +95,15 @@ func (g *Grid) color(row, col int) (val int) {
     return
 }
 
+// try and drop a grain
+func (g *Grid) drop(row, col, color int) bool {
+    if g.color(row, col) < 0 {
+        g.colors[row][col] = Colors[color+1]
+        return true
+    }
+    return false
+}
+
 // read the trail file to setup the grid
 func readGrid(file string) *Grid {
     s := util.Open(file)
@@ -219,36 +228,34 @@ func run(g *Grid, code gp.Expr) *Grid {
             }
         }
     }
+    // if ant is holding a grain it must drop it so that it can be counted
+    for _, ant := range grid.ants {
+        if ant.carrying < 0 { continue }
+        // if current location is empty, count it here
+        if grid.drop(ant.row, ant.col, ant.carrying) { continue }
+        // if cell we picked it up from is empty, count it there
+        if grid.drop(ant.pickupRow, ant.pickupCol, ant.carrying) { continue }
+        // find next free space
+        grid.mustDrop(ant.row, ant.col, ant.carrying)
+    }
     return grid
 }
 
-// convert color and column to fitness
-func fitnessVal(color int, xpos int) (fit int) {
-    switch color {
-        case 0: fit = 3*(xpos+1)
-        case 1: fit = 2*(xpos+1)
-        case 2: fit = xpos+1
+// force drop in next free space
+func (g *Grid) mustDrop(row, col, color int) {
+    rows, cols := len(g.colors), len(g.colors[0])
+    for xoff := 1; xoff < cols; xoff++ {
+        x := util.Mod(col+xoff, cols)
+        for yoff := 0; yoff <= xoff; yoff++ {
+            y := util.Mod(row+yoff, rows)
+            if g.drop(y, x, color) { return }
+            if yoff > 0 {             
+                y := util.Mod(row-yoff, rows)
+                if g.drop(y, x, color) { return }
+            }
+        } 
     }
-    return
-}
-
-// get column for sand ant is carrying for fitbess score
-func getColumn(ant *Ant, grid *Grid) int {
-    if grid.color(ant.row, ant.col) < 0 {
-        // current location is empty, count it here
-        return ant.col
-    }
-    if grid.color(ant.pickupRow, ant.pickupCol) < 0 {
-        // cell we picked it up from is empty, count it there
-        return ant.pickupCol
-    }
-    // find next free space
-    for col := ant.col+1; col < len(grid.colors[0]); col++ {
-        if grid.color(ant.row, col) < 0 {
-            return col
-        }
-    }
-    return len(grid.colors[0])
+    panic("nowhere to drop the sand!")
 }
 
 // Raw fitness is the product of the color of the grain of sand (1,2,3) and the distance
@@ -260,16 +267,11 @@ func fitnessFunc(g *Grid) func(gp.Expr) (float64, bool) {
         // check every square for sand on the ground
         for row, line := range grid.colors {
             for col := range line {
-                color := grid.color(row, col)
-                if color >= 0 {
-                    fit += fitnessVal(color, col)
+                switch grid.color(row, col) {
+                    case 0: fit += 3*(col+1)
+                    case 1: fit += 2*(col+1)
+                    case 2: fit += col+1
                 }
-            }
-        }
-        // check ants and count any sand they're carrying
-        for _, ant := range grid.ants {
-            if ant.carrying >= 0 {
-                fit += fitnessVal(ant.carrying, getColumn(ant, grid))
             }
         }
         // scale fitness to 0 to 1 range
@@ -278,8 +280,8 @@ func fitnessFunc(g *Grid) func(gp.Expr) (float64, bool) {
 }
 
 // function to plot grid colors
-func plotGrid(g *Grid) []func(gp.Population)stats.Plot {
-    colors := []string{"#ff8080", "#80ff80", "#8080ff"}
+func plotGrid(g *Grid) []func(gp.Population) stats.Plot {
+    colors := []string{"#ff0000", "#00ff00", "#0000ff"}
     rows, cols := len(g.colors), len(g.colors[0])
     fn := make([]func(gp.Population)stats.Plot, 3)
     for i := range fn {
@@ -305,28 +307,20 @@ func plotGrid(g *Grid) []func(gp.Population)stats.Plot {
     return fn
 }
 
-// function to plot ants and colors they are carrying
-func plotAnts(g *Grid) []func(gp.Population)stats.Plot {
+// function to plot final ant positions
+func plotAnts(g *Grid) func(gp.Population) stats.Plot {
     rows := len(g.colors)
-    colors := []string{"#000000", "#ff0000", "#00ff00", "#0000ff"}
-    fn := make([]func(gp.Population)stats.Plot, 4)
-    for i := range fn {
-        color := i
-        fn[color] = func(pop gp.Population) stats.Plot {
-            grid := run(g, pop.Best().Code)
-            plot := stats.NewPlot("", 0)
-            plot.Bubbles.Show = true
-            plot.Bubbles.Fill = color > 0
-            plot.Color = colors[color]
-            for _, ant := range grid.ants {
-                if color == 0 || ant.carrying == color-1 {
-                    plot.Data = append(plot.Data, [3]float64{ float64(ant.col), float64(rows-ant.row), 0.8 })                    
-                }
-            }
-            return plot
+    return func(pop gp.Population) stats.Plot {
+        grid := run(g, pop.Best().Code)
+        plot := stats.NewPlot("", 0)
+        plot.Bubbles.Show = true
+        plot.Bubbles.Fill = false
+        plot.Color = "#000000"
+        for _, ant := range grid.ants {
+            plot.Data = append(plot.Data, [3]float64{ float64(ant.col), float64(rows-ant.row), 0.8 })                    
         }
+        return plot
     }
-    return fn
 }
 
 // build and run model
@@ -389,7 +383,7 @@ func main() {
     // run
     if opts.Plot {
         logger.RegisterPlot(plotGrid(grid)...)
-        logger.RegisterPlot(plotAnts(grid)...) 
+        logger.RegisterPlot(plotAnts(grid)) 
         go stats.MainLoop(problem, logger)
         stats.StartBrowser("http://localhost:8080")
         logger.ListenAndServe(":8080", "../web")
