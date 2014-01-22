@@ -170,48 +170,47 @@ func pickUp(g *Grid) int {
 }
 
 // function set
-// if arg0 <= arg1 then arg2 else arg3
-type iflte struct { *gp.BaseFunc }
+type ifelse struct {
+    *gp.BaseFunc
+    cond func(*Grid, ...gp.Value) bool
+}
 
-func (o iflte) Eval(arg ...gp.Value) gp.Value {
+func IfElse(name string, arity int, cond func(*Grid, ...gp.Value)bool) gp.Opcode {
+    return ifelse{&gp.BaseFunc{name, arity}, cond}
+}
+
+func (o ifelse) Eval(arg ...gp.Value) gp.Value {
+    arity := o.Arity()
     return func(g *Grid) int {
-        if arg[0].(func(*Grid)int)(g) <= arg[1].(func(*Grid)int)(g) {
-            return arg[2].(func(*Grid)int)(g)
+        if o.cond(g, arg...) {
+            return arg[arity-2].(func(*Grid)int)(g)
         } else {
-            return arg[3].(func(*Grid)int)(g)
+            return arg[arity-1].(func(*Grid)int)(g)
         }
     }
+}
+
+// if arg0 <= arg1 then arg2 else arg3
+func ifLessThanOrEqual(g *Grid, arg ...gp.Value) bool {
+    return arg[0].(func(*Grid)int)(g) <= arg[1].(func(*Grid)int)(g)
 }
 
 // if arg0 < 0 then arg1 else arg2
-type ifltz struct { *gp.BaseFunc }
-
-func (o ifltz) Eval(arg ...gp.Value) gp.Value {
-    return func(g *Grid) int {
-        if arg[0].(func(*Grid)int)(g) < 0 {
-            return arg[1].(func(*Grid)int)(g)
-        } else {
-            return arg[2].(func(*Grid)int)(g)
-        }
-    }
+func ifLessThanZero(g *Grid, arg ...gp.Value) bool {
+    return arg[0].(func(*Grid)int)(g) < 0
 }
 
 // if carrying a grain and current position is empty drop and call arg0, else call arg1
-type ifdrop struct { *gp.BaseFunc }
-
-func (o ifdrop) Eval(arg ...gp.Value) gp.Value {
-    return func(g *Grid) int {
-        if g.ant.carrying >= 0 && g.color(g.ant.row, g.ant.col) < 0 {
-            if g.ant.moves < g.maxMoves { 
-                g.ant.moves++
-                g.colors[g.ant.row][g.ant.col] = Colors[g.ant.carrying+1]
-                g.ant.carrying = -1
-            }
-            return arg[0].(func(*Grid)int)(g)
-        } else {
-            return arg[1].(func(*Grid)int)(g)
-        }
+func ifDrop(g *Grid, arg ...gp.Value) bool {
+    if g.ant.carrying < 0 || g.color(g.ant.row, g.ant.col) >= 0 {
+        return false
     }
+    if g.ant.moves < g.maxMoves { 
+        g.ant.moves++
+        g.colors[g.ant.row][g.ant.col] = Colors[g.ant.carrying+1]
+        g.ant.carrying = -1
+    }
+    return true
 }
 
 // run the code - step each ant in turn
@@ -347,9 +346,9 @@ func main() {
     pset.Add(Terminal("go-w", move(3)))
     pset.Add(Terminal("go-rand", func (g *Grid) int { return move(g.rng.Intn(4))(g) }))
     pset.Add(Terminal("pickup", pickUp))
-    pset.Add(iflte{ &gp.BaseFunc{"iflte", 4} })
-    pset.Add(ifltz{ &gp.BaseFunc{"ifltz", 3} })
-    pset.Add(ifdrop{ &gp.BaseFunc{"ifdrop", 2} })
+    pset.Add(IfElse("iflte", 4, ifLessThanOrEqual))
+    pset.Add(IfElse("ifltz", 3, ifLessThanZero))
+    pset.Add(IfElse("ifdrop", 2, ifDrop))
 
     // setup model
     problem := &gp.Model{
