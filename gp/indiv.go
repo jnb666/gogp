@@ -1,5 +1,8 @@
 package gp
-import "fmt"
+import (
+    "fmt"
+    "sync"
+)
 
 // An Evaluator is provided by the implementation to calculate the fitness of an individual.
 // The fitness should be a normalised fitness value, i.e. a number in the range 0 to 1 
@@ -18,8 +21,6 @@ type Individual struct {
     depth int
 }
 
-type empty struct{}
-
 // Evaluate calls the eval Evaluator to calculate the fitness for each individual.
 // Work can be split into threads parallel goroutines.
 // Returns the new population and the number of individuals which were evaluated.
@@ -34,22 +35,23 @@ func (pop Population) Evaluate(eval Evaluator, threads int) (Population, int) {
     if chunkSize < 1 { chunkSize = 1 }
     start := 0
     end := chunkSize
-    sem := make(chan empty, threads)
+    var wg sync.WaitGroup
+    wg.Add(threads)
     for chunk := 0; chunk < threads; chunk++ {
         // last chunk takes any extras
         if chunk == threads-1 { end = evals }
         // kick off goroutine to do the work
-        go func(indices []int, sem chan empty) {
+        go func(indices []int) {
             for _, i := range indices {
                  pop[i].Fitness, pop[i].FitnessValid = eval.GetFitness(pop[i].Code)
             }
-            sem <- empty{}
-        } (todo[start:end], sem)
+            wg.Done()
+        } (todo[start:end])
         start += chunkSize
         end += chunkSize
     }
     // wait for goroutines to finish
-    for chunk := 0; chunk < threads; chunk++ { <-sem }
+    wg.Wait()
     return pop, evals
 }
 
