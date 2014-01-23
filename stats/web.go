@@ -63,9 +63,15 @@ type PlotStats struct {
 type Plot struct {
     Label string        `json:"label"`
     Lines struct {
+        Show bool       `json:"show"`
         Fill bool       `json:"fill"`
         LineWidth int   `json:"lineWidth"`
     } `json:"lines"`      
+    Bars struct {
+        Show bool       `json:"show"`  
+        Fill bool       `json:"fill"` 
+        BarWidth float64  `json:"barWidth"`     
+    } `json:"bars"`
     Bubbles struct {
         Show  bool      `json:"show"`
         Fill  bool      `json:"fill"`
@@ -270,6 +276,17 @@ func (l *Logger) plotHandler(patternLen int) func (http.ResponseWriter, *http.Re
             }
             return
         }
+        if metric == "Hist" {
+            // fitness histogram
+            plot := NewBarPlot("fitness", HistBars)
+            plot.Color = "#0000ff"
+            hist := l.history[len(l.history)-1].FitHist
+            for i, num := range hist {
+                plot.Data[i] = [3]float64{ float64(i)/float64(HistBars), float64(num), 0 }
+            }
+            sendJSON(w, []Plot{plot})
+            return
+        }
         // stats metric plots (Fit, Size etc.)
         plots, err := getStatsPlots(l.history, metric)
         if err != nil {
@@ -295,6 +312,7 @@ func getStatsPlots(h []*Stats, name string) (lines []Plot, err error) {
     lines = make([]Plot, 3)
     colors := []string{"#ff0000", "#0000ff", "#b0b0ff"}
     for i, field := range []string{"Max", "Avg", "Std"} {
+        lines[i].Lines.Show = true
         lines[i].Data = make([][3]float64, len(h))
         lines[i].Color = colors[i]
         if field == "Std" {
@@ -330,6 +348,17 @@ func NewPlot(label string, size int) Plot {
     p.Label = label
     p.Lines.LineWidth = 2
     p.Bubbles.Fill = true
+    p.Data = make([][3]float64, size)
+    return p
+}
+
+// NewBarPlot returns a new bar Plot struct with given label and size
+func NewBarPlot(label string, size int) Plot {
+    p := Plot{}
+    p.Label = label
+    p.Bars.Show = true
+    p.Bars.Fill = true
+    p.Bars.BarWidth = 1/float64(HistBars)
     p.Data = make([][3]float64, size)
     return p
 }

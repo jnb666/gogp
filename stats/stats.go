@@ -16,6 +16,7 @@ var (
     LogFormatFloat = "%.3g"
     LogFormatInt   = "%d"
     LogColumnFormat = "%-8s"
+    HistBars = 50
     Debug = false
 )
 
@@ -23,6 +24,7 @@ var (
 type Stats struct {
     Gen, Evals int
     Fit, Size, Depth StatsData
+    FitHist []int
     Best *gp.Individual
 }
 
@@ -40,6 +42,14 @@ func Create(pop gp.Population, gen, evals int) *Stats {
     s.Size = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Size()) })
     s.Depth = updateStats(pop, func(ind *gp.Individual)float64 { return float64(ind.Depth()) })
     s.Best = pop[s.Fit.MaxIndex]
+    s.FitHist = make([]int, HistBars)
+    for _, ind := range pop {
+        bin := int(ind.Fitness*float64(HistBars))
+        if bin > HistBars-1 { bin-- }
+        if bin >= 0 && bin < HistBars {
+            s.FitHist[bin]++
+        }
+    }
     return s
 }
 

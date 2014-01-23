@@ -17,6 +17,7 @@ $(function() {
     var wait = 500;
     var plotSel = [
         {id:"Fit", text:"fitness"},
+        {id:"Hist", text:"fit hist"},
         {id:"Size", text:"size"}, 
         {id:"Depth", text:"depth"},
         {id:"Plot", text:"custom"}
@@ -83,6 +84,10 @@ $(function() {
                 } else {
                     opts.xaxis.min = 0;
                     opts.xaxis.max = maxGen;
+                    if (field == "Hist") {
+                        opts.xaxis.max = 1;
+                        opts.legend.position = "nw";
+                    }
                     opts.yaxis.min = 0;
                     if (field == "Fit") { opts.yaxis.max = 1 }
                 }
