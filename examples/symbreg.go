@@ -52,6 +52,7 @@ func plotTarget(trainSet []Point) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         plot := stats.NewPlot("Target", len(trainSet))
         plot.Color = "#00ff00"
+        plot.Lines.Show = true
         for i, pt := range trainSet {
             plot.Data[i][0], plot.Data[i][1] = pt.x, pt.y
         }
@@ -64,6 +65,7 @@ func plotBest(trainSet []Point) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         plot := stats.NewPlot("Best", len(trainSet))
         plot.Color = "#ff0000"
+        plot.Lines.Show = true
         code := pop.Best().Code
         for i, pt := range trainSet {
             plot.Data[i][0] = pt.x
@@ -117,9 +119,7 @@ func main() {
         gp.GraphDPI = "60"
         logger.RegisterPlot(plotTarget(trainSet)) 
         logger.RegisterPlot(plotBest(trainSet))
-        go stats.MainLoop(problem, logger)
-        stats.StartBrowser("http://localhost:8080")
-        logger.ListenAndServe(":8080", "../web")
+        stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()
         logger.PrintStats = true

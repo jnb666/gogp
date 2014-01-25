@@ -11,6 +11,8 @@ import (
 // Formatting for logging implemented in Stats.String() method.
 // The default set of columns and format strings are set on initialisation.
 var (
+    BrowserWidth = 850
+    BrowserHeight = 950
     LogColumn = []string{"Gen", "Evals", "Fit.Max", "Fit.Avg", "Fit.Std", 
                          "Size.Avg", "Size.Max", "Depth.Avg", "Depth.Max"}
     LogFormatFloat = "%.3g"

@@ -257,16 +257,14 @@ func main() {
     if opts.Verbose {
         logger.OnDone = func(best *gp.Individual) {
             ant := run(config, best.Code)
-            fmt.Println(ant.grid)            
+            fmt.Println(ant.grid)
         }
     }
 
     // run
     if opts.Plot {
         logger.RegisterPlot(plotGrid(config), plotBest(config)) 
-        go stats.MainLoop(problem, logger)
-        stats.StartBrowser("http://localhost:8080")
-        logger.ListenAndServe(":8080", "../web")
+        stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()
         logger.PrintStats = true

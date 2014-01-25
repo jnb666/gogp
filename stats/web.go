@@ -5,19 +5,12 @@ import (
     "log"
     "sync"
     "strconv"
-    "os/exec"
     "net/http"
     "encoding/json"
+    "github.com/mattn/go-gtk/gtk"
+    "github.com/mattn/go-webkit/webkit"
     "github.com/jnb666/gogp/gp"
 )
-
-// WebBrowser has paths to possible location of browser on this system
-var WebBrowser = []string{
-    "/etc/alternatives/gnome-www-browser",
-    "/etc/alternatives/x-www-browser",
-    "google-chrome",
-    "firefox",
-}
 
 type plotFunc func(gp.Population) Plot
 
@@ -79,16 +72,6 @@ type Plot struct {
     } `json:"bubbles"`
     Data  [][3]float64  `json:"data"`
     Color string        `json:"color"`
-}
-
-// MainLoop function runs a model repeatedly with given model.
-// Control of step and restart is controlled via web interface.
-func MainLoop(problem *gp.Model, logger *Logger) {
-     logger.InitChan()
-     for {
-        problem.Run(logger)
-        logger.Reset()
-    }
 }
 
 // InitChan initialises the channels used for ipc. 
@@ -363,16 +346,34 @@ func NewBarPlot(label string, size int) Plot {
     return p
 }
 
-// point a web browser to url - assumes Linux
-func StartBrowser(url string) {
-    for _, name := range WebBrowser {
-        cmd := exec.Command(name, url)
-        if err := cmd.Start(); err == nil { 
-            log.Println("started browser", name, url)    
-            return
-        }
-    }
-    log.Println("no browser found - go to", url, "to view the data")
+// StartBrowser launches a web browser with given url and size
+func StartBrowser(url string, width, height int) {
+    gtk.Init(nil)
+    window := gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
+    window.SetTitle("gogp")
+    window.Connect("destroy", gtk.MainQuit)
+    swin := gtk.NewScrolledWindow(nil, nil)
+    swin.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+    swin.SetShadowType(gtk.SHADOW_IN)
+    webview := webkit.NewWebView()
+    swin.Add(webview)
+    window.Add(swin)
+    window.SetSizeRequest(width, height)
+    webview.LoadUri(url)
+    window.ShowAll()
+    gtk.Main()
 }
 
-
+// MainLoop function runs a model repeatedly with given model.
+// Control of step and restart is controlled via web interface.
+func MainLoop(problem *gp.Model, logger *Logger, port, webRoot string) {
+    logger.InitChan()
+    go logger.ListenAndServe(port, webRoot)
+    go func() {
+        for {
+            problem.Run(logger)
+            logger.Reset()
+        }
+    }()
+    StartBrowser("http://localhost"+port, BrowserWidth, BrowserHeight)
+}

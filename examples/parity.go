@@ -70,9 +70,7 @@ func main() {
 
     logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
     if opts.Plot {
-        go stats.MainLoop(problem, logger)
-        stats.StartBrowser("http://localhost:8080")
-        logger.ListenAndServe(":8080", "../web")
+        stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()
         logger.PrintStats = true

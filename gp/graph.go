@@ -15,7 +15,7 @@ import (
 var (
     NodeAttrs = gv.Attrs{
         "fontname": `"Helvetica"`,
-        "fontsize": "12",
+        "fontsize": "10",
         "style":    "filled",
         "color":    "lightgrey",
     }

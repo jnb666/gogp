@@ -382,10 +382,8 @@ func main() {
     // run
     if opts.Plot {
         logger.RegisterPlot(plotGrid(grid)...)
-        logger.RegisterPlot(plotAnts(grid)) 
-        go stats.MainLoop(problem, logger)
-        stats.StartBrowser("http://localhost:8080")
-        logger.ListenAndServe(":8080", "../web")
+        logger.RegisterPlot(plotAnts(grid))
+        stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()
         logger.PrintStats = true
