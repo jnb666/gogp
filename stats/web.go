@@ -364,7 +364,7 @@ func StartBrowser(url string, width, height int) {
     gtk.Main()
 }
 
-// MainLoop function runs a model repeatedly with given model.
+// MainLoop function runs a model repeatedly with given logger.
 // Control of step and restart is controlled via web interface.
 func MainLoop(problem *gp.Model, logger *Logger, port, webRoot string) {
     logger.InitChan()
