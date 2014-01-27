@@ -31,6 +31,7 @@ type Ant struct {
     row, col, dir int
     maxMoves, moves, eaten int
     grid Grid
+    path [][2]int
 }
 
 // execute each of args in sequence
@@ -76,6 +77,7 @@ func step(ant *Ant) {
         ant.row, ant.col = ant.grid.Next(ant.row, ant.col, ant.dir)
         if ant.grid[ant.row][ant.col] == FOOD { ant.eaten++ }
         ant.grid[ant.row][ant.col] = TRAIL
+        ant.path = append(ant.path, [2]int{ant.col, ant.row})
     }
 }
 
@@ -147,12 +149,15 @@ func readTrail(file string) *Config {
 // create a new ant - make deep copy of grid
 func newAnt(conf *Config) *Ant {
     grid := conf.grid.Clone()
+    path := make([][2]int, 1, conf.maxMoves)
+    path[0][0], path[0][1] = conf.startCol, conf.startRow
     return &Ant{
         maxMoves: conf.maxMoves,
         row: conf.startRow,
         col: conf.startCol,
         dir: conf.startDir,
         grid: grid,
+        path: path,
     }
 }
 
@@ -172,42 +177,29 @@ func fitnessFunc(conf *Config) func(gp.Expr) (float64, bool) {
     }
 }
 
-// new bubble plot
-func createPlot(label string, grid Grid, rows, cols int, cellType byte, size float64) stats.Plot { 
-    plot := stats.NewPlot(label, rows*cols)
-    plot.Bubbles.Show = true
-    i := 0
-    for y := 0; y < cols; y++ {
-        for x := 0;  x < rows; x++ {
-            if grid[y][x] == cellType {
-                plot.Data[i] = [3]float64{ float64(x), float64(rows-y), size }
-                i++
+// returns function to plot path of best individual
+func createPlot(c *Config, size, delay int) func(gp.Population) []byte {
+    cellSize := size/c.plotCols
+    return func(pop gp.Population) []byte {
+        ch := make(chan [][2]int)
+        go func() {
+            ant := run(c, pop.Best().Code)
+            ch <- ant.path
+        }()
+        // draw grid
+        plot := util.SVGPlot(size, size, cellSize)
+        plot.AddGrid(c.plotCols, c.plotRows, delay, func(x, y int) string {
+            if c.grid[y][x] == FOOD {
+                return "fill:green"
+            } else {
+                return "fill:grey"
             }
-        }
-    }
-    plot.Data = plot.Data[:i]
-    return plot
-}
-
-// function to plot grid
-func plotGrid(c *Config) func(gp.Population) stats.Plot {
-    return func(pop gp.Population) stats.Plot {
-        plot := createPlot("food", c.grid, c.plotRows, c.plotCols, FOOD, 1)
-        plot.Color = "#00ff00"
-        plot.Bubbles.Type = "box"
-        plot.Data = append(plot.Data, [3]float64{-0.5, 0.5, 0.01})
-        plot.Data = append(plot.Data, [3]float64{float64(c.plotRows)-0.5, float64(c.plotCols)+0.5, 0.01})
-        return plot
-    }
-}
-
-// function to plot path of best individual
-func plotBest(c *Config) func(gp.Population) stats.Plot {
-    return func(pop gp.Population) stats.Plot {
-        ant := run(c, pop.Best().Code)
-        plot := createPlot("best", ant.grid, c.plotRows, c.plotCols, TRAIL, 0.75)
-        plot.Color = "#ff0000"
-        return plot
+        })
+        // draw ant
+        plot.AddCircle("ant", c.startCol, c.startRow, "fill:black")
+        plot.Animate("ant", <-ch, 
+            map[string]string{"fill:grey":"fill:brown", "fill:green":"fill:red"})
+        return plot.Data()
     }
 }
 
@@ -253,7 +245,7 @@ func main() {
     }
     problem.PrintParams("== Artificial ant ==")
 
-    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    logger := stats.NewLogger(opts.MaxGen, opts.TargetFitness)
     if opts.Verbose {
         logger.OnDone = func(best *gp.Individual) {
             ant := run(config, best.Code)
@@ -263,7 +255,7 @@ func main() {
 
     // run
     if opts.Plot {
-        logger.RegisterPlot(plotGrid(config), plotBest(config)) 
+        logger.RegisterSVGPlot("best", createPlot(config, 500, 10)) 
         stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()

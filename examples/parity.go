@@ -68,7 +68,7 @@ func main() {
     }
     problem.PrintParams("== Even parity problem for", PARITY_FANIN, "inputs ==")
 
-    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    logger := stats.NewLogger(opts.MaxGen, opts.TargetFitness)
     if opts.Plot {
         stats.MainLoop(problem, logger, ":8080", "../web")
     } else {

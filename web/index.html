@@ -12,23 +12,23 @@
 <script type="text/javascript" src="jquery.flot.bubbles.js"></script>
 <script type="text/javascript">
 $(function() {
-    var running = false;
+    running = false;    // make this global so can reference from SVG
     var maxGen = 0;
     var wait = 500;
-    var plotSel = [
-        {id:"Fit", text:"fitness"},
-        {id:"Hist", text:"fit hist"},
-        {id:"Size", text:"size"}, 
-        {id:"Depth", text:"depth"},
-        {id:"Plot", text:"custom"}
-    ];
 
-    function setOptions(chooser, defaultVal) {
+    // initialise plot types
+    $.getJSON("/plot/List", function(options) {
+        setOptions("#choose-plot1", options, 0);
+        setOptions("#choose-plot2", options, 1);
+        setOptions("#choose-plot3", options, 2); 
+    });
+
+    function setOptions(chooser, options, def) {
         var opts = $(chooser);
-        $.each(plotSel, function() {
-            opts.append($("<option />").val(this.id).text(this.text));
+        $.each(options, function() {
+            opts.append($("<option />").val(this[0]).text(this[1]));
         });
-        $(chooser).val(defaultVal);
+        $(chooser).val(options[def][0]);
     }
 
     // set stats headers
@@ -66,8 +66,10 @@ $(function() {
 
     // get data and update the given plot
     function fetchPlot(id, field) {
-        $.getJSON("/plot/" + field,
-            function(data) {
+        if (field == "SVGPlot") {
+            $(id).load("/plot/SVGPlot");
+        } else {
+            $.getJSON("/plot/" + field, function(data) {
                 var opts = {
                     legend: { position: "se" },
                     xaxis:  { },
@@ -92,8 +94,8 @@ $(function() {
                     if (field == "Fit") { opts.yaxis.max = 1 }
                 }
                 $.plot($(id), data, opts);
-            }
-        );
+            });
+        }
     }
 
     // get the stats for generation no. gen and plot data
@@ -179,10 +181,7 @@ $(function() {
     $("#choose-plot3").change(function() {
         fetchPlot("#plot3", $("#choose-plot3").val());
     });
-    // update data on load
-    setOptions("#choose-plot1", "Plot");
-    setOptions("#choose-plot2", "Fit");
-    setOptions("#choose-plot3", "Size");    
+    // update data on load   
     fetch(0, true);
 });
 </script>

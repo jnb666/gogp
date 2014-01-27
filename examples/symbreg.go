@@ -52,7 +52,6 @@ func plotTarget(trainSet []Point) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         plot := stats.NewPlot("Target", len(trainSet))
         plot.Color = "#00ff00"
-        plot.Lines.Show = true
         for i, pt := range trainSet {
             plot.Data[i][0], plot.Data[i][1] = pt.x, pt.y
         }
@@ -65,7 +64,6 @@ func plotBest(trainSet []Point) func(gp.Population) stats.Plot {
     return func(pop gp.Population) stats.Plot {
         plot := stats.NewPlot("Best", len(trainSet))
         plot.Color = "#ff0000"
-        plot.Lines.Show = true
         code := pop.Best().Code
         for i, pt := range trainSet {
             plot.Data[i][0] = pt.x
@@ -114,11 +112,10 @@ func main() {
     problem.PrintParams("== GP Symbolic Regression for ", dataFile, "==")
 
     // run
-    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    logger := stats.NewLogger(opts.MaxGen, opts.TargetFitness)
     if opts.Plot {
         gp.GraphDPI = "60"
-        logger.RegisterPlot(plotTarget(trainSet)) 
-        logger.RegisterPlot(plotBest(trainSet))
+        logger.RegisterPlot("graph", plotTarget(trainSet), plotBest(trainSet))
         stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()

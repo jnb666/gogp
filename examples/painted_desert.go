@@ -24,7 +24,8 @@ type Grid struct {
     ants   []*Ant
     ant    *Ant
     rng    *rand.Rand
-    steps, maxMoves int
+    steps, maxMoves, id int
+    path   [][4]int
 }
 
 // per ant data
@@ -73,6 +74,7 @@ func (g *Grid) clone() *Grid {
         grid.ants[i] = new(Ant)
         *(grid.ants[i]) = *ant
     }
+    grid.path = make([][4]int, 0, g.maxMoves)
     return &grid
 }
 
@@ -93,15 +95,6 @@ func (g *Grid) color(row, col int) (val int) {
         default: val = -1
     }
     return
-}
-
-// try and drop a grain
-func (g *Grid) drop(row, col, color int) bool {
-    if g.color(row, col) < 0 {
-        g.colors[row][col] = Colors[color+1]
-        return true
-    }
-    return false
 }
 
 // read the trail file to setup the grid
@@ -150,6 +143,9 @@ func move(dir int) func(*Grid) int {
             row, col := g.next(g.ant.row, g.ant.col, dir)
             if g.at(row, col) == nil {
                 g.ant.row, g.ant.col = row, col
+                //if g.ant.carrying >= 0 {
+                //    g.path = append(g.path, [4]int{g.id, col, row, 0})
+                //}
             }
         }
         return g.color(g.ant.row, g.ant.col)
@@ -164,6 +160,7 @@ func pickUp(g *Grid) int {
         g.ant.carrying = color
         g.ant.pickupRow, g.ant.pickupCol = g.ant.row, g.ant.col
         g.colors[g.ant.row][g.ant.col] = '.'
+        g.path = append(g.path, [4]int{g.id, g.ant.col, g.ant.row, color+1})
         return -1
     }
     return color
@@ -200,17 +197,25 @@ func ifLessThanZero(g *Grid, arg ...gp.Value) bool {
     return arg[0].(func(*Grid)int)(g) < 0
 }
 
+// try and drop a grain
+func (g *Grid) drop(row, col, color int) bool {
+    if color >= 0 && g.color(row, col) < 0 {
+        g.colors[row][col] = Colors[color+1]
+        g.path = append(g.path, [4]int{g.id, col, row, -(color+1)})
+        return true
+    }
+    return false
+}
+
+
 // if carrying a grain and current position is empty drop and call arg0, else call arg1
 func ifDrop(g *Grid, arg ...gp.Value) bool {
-    if g.ant.carrying < 0 || g.color(g.ant.row, g.ant.col) >= 0 {
-        return false
-    }
-    if g.ant.moves < g.maxMoves { 
+    if g.ant.moves < g.maxMoves && g.drop(g.ant.row, g.ant.col, g.ant.carrying) {
         g.ant.moves++
-        g.colors[g.ant.row][g.ant.col] = Colors[g.ant.carrying+1]
         g.ant.carrying = -1
+        return true
     }
-    return true
+    return false
 }
 
 // run the code - step each ant in turn
@@ -221,6 +226,7 @@ func run(g *Grid, code gp.Expr) *Grid {
     grid.rng = rand.New(rand.NewSource(1))
     for i := 0; i < grid.steps; i++ {
         for id := range grid.ants {
+            grid.id = id
             grid.ant = grid.ants[id]
             if grid.ant.moves < grid.maxMoves {
                 runFunc(grid)
@@ -228,14 +234,19 @@ func run(g *Grid, code gp.Expr) *Grid {
         }
     }
     // if ant is holding a grain it must drop it so that it can be counted
-    for _, ant := range grid.ants {
+    for id, ant := range grid.ants {
         if ant.carrying < 0 { continue }
+        grid.id = id
         // if current location is empty, count it here
         if grid.drop(ant.row, ant.col, ant.carrying) { continue }
         // if cell we picked it up from is empty, count it there
         if grid.drop(ant.pickupRow, ant.pickupCol, ant.carrying) { continue }
         // find next free space
         grid.mustDrop(ant.row, ant.col, ant.carrying)
+    }
+    // show final location
+    for id, ant := range grid.ants {
+        grid.path = append(grid.path, [4]int{id, ant.col, ant.row, 0})
     }
     return grid
 }
@@ -278,47 +289,29 @@ func fitnessFunc(g *Grid) func(gp.Expr) (float64, bool) {
     }
 }
 
-// function to plot grid colors
-func plotGrid(g *Grid) []func(gp.Population) stats.Plot {
-    colors := []string{"#ff0000", "#00ff00", "#0000ff"}
+// returns function to plot path of best individual
+func createPlot(g *Grid, size, delay int) func(gp.Population) []byte {
+    styles := []string{"fill:grey", "fill:red", "fill:green", "fill:blue"}
     rows, cols := len(g.colors), len(g.colors[0])
-    fn := make([]func(gp.Population)stats.Plot, 3)
-    for i := range fn {
-        color := i
-        fn[color] = func(pop gp.Population) stats.Plot {
+    cellSize := size/cols
+    return func(pop gp.Population) []byte {
+        ch := make(chan [][4]int)
+        go func() {
             grid := run(g, pop.Best().Code)
-            plot := stats.NewPlot("", 0)
-            plot.Bubbles.Show = true
-            plot.Bubbles.Type = "box"
-            plot.Color = colors[color]
-            for y := 0; y < cols; y++ {
-                for x := 0;  x < rows; x++ {
-                    if grid.color(y,x) == color {
-                        plot.Data = append(plot.Data, [3]float64{ float64(x), float64(rows-y), 1 })
-                    }
-                }
-            }
-            plot.Data = append(plot.Data, [3]float64{-0.5, 0.5, 0.01})
-            plot.Data = append(plot.Data, [3]float64{float64(rows)-0.5, float64(cols)+0.5, 0.01})
-            return plot
+            ch <- grid.path
+        }()
+        // draw grid
+        plot := util.SVGPlot(size, size, cellSize)
+        plot.AddGrid(cols, rows, delay, func(x, y int) string { 
+            return styles[g.color(y,x)+1]
+        })
+        // draw ants
+        for i, ant := range g.ants {
+            id := fmt.Sprintf("ant%d", i)
+            plot.AddCircle(id, ant.col, ant.row, "fill:none")
         }
-    }
-    return fn
-}
-
-// function to plot final ant positions
-func plotAnts(g *Grid) func(gp.Population) stats.Plot {
-    rows := len(g.colors)
-    return func(pop gp.Population) stats.Plot {
-        grid := run(g, pop.Best().Code)
-        plot := stats.NewPlot("", 0)
-        plot.Bubbles.Show = true
-        plot.Bubbles.Fill = false
-        plot.Color = "#000000"
-        for _, ant := range grid.ants {
-            plot.Data = append(plot.Data, [3]float64{ float64(ant.col), float64(rows-ant.row), 0.8 })                    
-        }
-        return plot
+        plot.AnimateMulti("ant", <-ch, styles)
+        return plot.Data()
     }
 }
 
@@ -371,7 +364,7 @@ func main() {
     }
     problem.PrintParams("== Artificial ant ==")
 
-    logger := &stats.Logger{ MaxGen: opts.MaxGen, TargetFitness: opts.TargetFitness }
+    logger := stats.NewLogger(opts.MaxGen, opts.TargetFitness)
     if opts.Verbose {
         logger.OnDone = func(best *gp.Individual) {
             g := run(grid, best.Code)
@@ -381,8 +374,7 @@ func main() {
 
     // run
     if opts.Plot {
-        logger.RegisterPlot(plotGrid(grid)...)
-        logger.RegisterPlot(plotAnts(grid))
+        logger.RegisterSVGPlot("best", createPlot(grid, 500, 2))
         stats.MainLoop(problem, logger, ":8080", "../web")
     } else {
         fmt.Println()
