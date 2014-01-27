@@ -78,7 +78,6 @@ type Plot struct {
     Bubbles struct {
         Show  bool      `json:"show"`
         Fill  bool      `json:"fill"`
-        Type  string    `json:"type"`
     } `json:"bubbles"`
     Data  [][3]float64  `json:"data"`
     Color string        `json:"color"`

@@ -51,19 +51,6 @@ $(function() {
         }
     }
 
-    // custom bubble plots
-    function drawbubbleBox(ctx,serie,x,y,v,r,c,overlay){
-        ctx.fillStyle = c;
-        ctx.strokeStyle = c;
-        ctx.lineWidth = serie.bubbles.lineWidth;
-        if (serie.bubbles.fill) {
-            ctx.fillRect(x-r,y-r,2*r,2*r);
-        } else {
-            ctx.rect(x-r,y-r,2*r,2*r);   
-        }
-        if(serie.bubbles.bubblelabel.show) {drawbubbleLabel(ctx,serie,x,y,v); }
-    }  
-
     // get data and update the given plot
     function fetchPlot(id, field) {
         if (field == "SVGPlot") {
@@ -76,14 +63,7 @@ $(function() {
                     yaxis:  { autoscaleMargin: null },
                     series: { bubbles: { active:true, show:false } }
                 };
-                if (field == "Plot") {
-                    for (var i = 0; i < data.length; i++) {
-                        var type = data[i].bubbles.type;
-                        if (type == "box") {
-                            data[i].bubbles.drawbubble = drawbubbleBox;
-                        }
-                    }
-                } else {
+                if (field != "Plot") {
                     opts.xaxis.min = 0;
                     opts.xaxis.max = maxGen;
                     if (field == "Hist") {
