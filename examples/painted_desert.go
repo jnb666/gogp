@@ -32,6 +32,7 @@ type Grid struct {
 type Ant struct {
     row, col, carrying, moves int
     pickupRow, pickupCol int
+    pickupFlag bool
 }
 
 // get ant at given location or nil if none
@@ -143,9 +144,12 @@ func move(dir int) func(*Grid) int {
             row, col := g.next(g.ant.row, g.ant.col, dir)
             if g.at(row, col) == nil {
                 g.ant.row, g.ant.col = row, col
-                //if g.ant.carrying >= 0 {
-                //    g.path = append(g.path, [4]int{g.id, col, row, 0})
-                //}
+                // update board if we have just picked up a grain
+                if g.ant.pickupFlag {
+                    g.path = append(g.path, 
+                        [4]int{g.id, g.ant.pickupCol, g.ant.pickupRow, g.ant.carrying+1})
+                    g.ant.pickupFlag = false
+                }
             }
         }
         return g.color(g.ant.row, g.ant.col)
@@ -160,7 +164,7 @@ func pickUp(g *Grid) int {
         g.ant.carrying = color
         g.ant.pickupRow, g.ant.pickupCol = g.ant.row, g.ant.col
         g.colors[g.ant.row][g.ant.col] = '.'
-        g.path = append(g.path, [4]int{g.id, g.ant.col, g.ant.row, color+1})
+        g.ant.pickupFlag = true
         return -1
     }
     return color
@@ -197,22 +201,29 @@ func ifLessThanZero(g *Grid, arg ...gp.Value) bool {
     return arg[0].(func(*Grid)int)(g) < 0
 }
 
-// try and drop a grain
-func (g *Grid) drop(row, col, color int) bool {
-    if color >= 0 && g.color(row, col) < 0 {
-        g.colors[row][col] = Colors[color+1]
-        g.path = append(g.path, [4]int{g.id, col, row, -(color+1)})
+// if carrying a grain and current position is empty drop and call arg0, else call arg1
+func ifDrop(g *Grid, arg ...gp.Value) bool {
+    if g.ant.carrying >= 0 && g.color(g.ant.row, g.ant.col) < 0 {
+        if g.ant.moves < g.maxMoves {
+            color := g.ant.carrying+1
+            g.colors[g.ant.row][g.ant.col] = Colors[color]
+            // update board if dropped in new location
+            if !g.ant.pickupFlag {
+                g.path = append(g.path, [4]int{g.id, g.ant.col, g.ant.row, -color})
+            }
+            g.ant.moves++
+            g.ant.carrying = -1
+        }
         return true
     }
     return false
 }
 
-
-// if carrying a grain and current position is empty drop and call arg0, else call arg1
-func ifDrop(g *Grid, arg ...gp.Value) bool {
-    if g.ant.moves < g.maxMoves && g.drop(g.ant.row, g.ant.col, g.ant.carrying) {
-        g.ant.moves++
-        g.ant.carrying = -1
+// move to given location and count grain there if it is empty
+func (g *Grid) drop(row, col, color int) bool {
+    if color >= 0 && g.color(row, col) < 0 {
+        g.colors[row][col] = Colors[color+1]
+        g.path = append(g.path, [4]int{g.id, col, row, 0})
         return true
     }
     return false
@@ -225,11 +236,16 @@ func run(g *Grid, code gp.Expr) *Grid {
     // always use same random number set so we get a consistent fitness score
     grid.rng = rand.New(rand.NewSource(1))
     for i := 0; i < grid.steps; i++ {
-        for id := range grid.ants {
+        for id, ant := range grid.ants {
             grid.id = id
-            grid.ant = grid.ants[id]
-            if grid.ant.moves < grid.maxMoves {
+            grid.ant = ant
+            if ant.moves < grid.maxMoves {
+                row, col := ant.row, ant.col
                 runFunc(grid)
+                // update location if moved
+                if (i % 20 == 19 || i == grid.steps-1) && (ant.col != col || ant.row != row) {
+                    grid.path = append(grid.path, [4]int{id, ant.col, ant.row, 0})
+                }
             }
         }
     }
@@ -243,10 +259,6 @@ func run(g *Grid, code gp.Expr) *Grid {
         if grid.drop(ant.pickupRow, ant.pickupCol, ant.carrying) { continue }
         // find next free space
         grid.mustDrop(ant.row, ant.col, ant.carrying)
-    }
-    // show final location
-    for id, ant := range grid.ants {
-        grid.path = append(grid.path, [4]int{id, ant.col, ant.row, 0})
     }
     return grid
 }
