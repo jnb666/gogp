@@ -179,7 +179,7 @@ func fitnessFunc(conf *Config) func(gp.Expr) (float64, bool) {
 
 // returns function to plot path of best individual
 func createPlot(c *Config, size, delay int) func(gp.Population) []byte {
-    cellSize := size/c.plotCols
+    sz := size/c.plotCols
     return func(pop gp.Population) []byte {
         ch := make(chan [][2]int)
         go func() {
@@ -187,7 +187,7 @@ func createPlot(c *Config, size, delay int) func(gp.Population) []byte {
             ch <- ant.path
         }()
         // draw grid
-        plot := util.SVGPlot(size, size, cellSize)
+        plot := util.SVGPlot(size, size, sz)
         plot.AddGrid(c.plotCols, c.plotRows, delay, func(x, y int) string {
             if c.grid[y][x] == FOOD {
                 return "fill:green"
@@ -196,7 +196,9 @@ func createPlot(c *Config, size, delay int) func(gp.Population) []byte {
             }
         })
         // draw ant
-        plot.AddCircle("ant", c.startCol, c.startRow, "fill:black")
+        plot.Gid("ant")
+        plot.Circle(c.startCol*sz+sz/2, c.startRow*sz+sz/2, int(0.4*float64(sz)), "fill:black")
+        plot.Gend()
         plot.Animate("ant", <-ch, 
             map[string]string{"fill:grey":"fill:brown", "fill:green":"fill:red"})
         return plot.Data()

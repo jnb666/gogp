@@ -105,42 +105,51 @@ func (p *Plot) AddGrid(cols, rows, delay int, style func(x, y int) string) {
     script := fmt.Sprintf("var cols = %d;\nvar cell = %d;\nvar delay = %d;\n",
                 cols, p.cell, delay)
     script += `
-function setPos(cells, pt, style, multi) {
-    var el = document.getElementById(pt.Id);
-    var circle = el.getElementsByTagName("circle")[0];
-    circle.setAttribute("cx", cell/2+cell*pt.X);
-    circle.setAttribute("cy", cell/2+cell*pt.Y);
-    var pos = pt.X + cols*pt.Y;
-    if (multi) {
-        if (pt.C > 0) {         // pick up
-            circle.setAttribute("style", style[pt.C] + ";stroke:white")
-            cells[pos].setAttribute("style", style[0])
-        } else if (pt.C < 0) {  //drop
-            circle.setAttribute("style", "fill:none;stroke:white")
-            cells[pos].setAttribute("style", style[-pt.C])         
-        }
-    } else {
-        var s = cells[pos].getAttribute("style");
-        if (style[s]) {
-            cells[pos].setAttribute("style", style[s]);
+function setPos(el, cells, pt, style) {
+    var obj = el.getElementsByTagName("circle")[0];
+    obj.setAttribute("cx", cell/2+cell*pt[0]);
+    obj.setAttribute("cy", cell/2+cell*pt[1]);
+    var pos = pt[0] + cols*pt[1];
+    var s = cells[pos].getAttribute("style");
+    if (style[s]) {
+        cells[pos].setAttribute("style", style[s]);
+    }
+}
+function setMulti(el, cells, pts, style) {
+    for (var i=0; i<pts.length; i++) {
+        var pt = pts[i];
+        var obj = el.getElementsByTagName("circle")[pt[0]];
+        var color = pt[3];
+        var pos = pt[1] + cols*pt[2];
+        if (color == 0) {              // move
+            obj.setAttribute("cx", cell/2+cell*pt[1]);
+            obj.setAttribute("cy", cell/2+cell*pt[2]);
+        } else if (color > 0) {        // pick up
+            obj.setAttribute("style", style[color] + ";stroke:white");
+            cells[pos].setAttribute("style", style[0]);
+        } else if (color < 0) {        // drop
+            obj.setAttribute("style", "fill:none;stroke:white");
+            cells[pos].setAttribute("style", style[-color]);
         }
     }
 }
-function animate(cells, path, i, style, multi) {
-    setPos(cells, path[i], style, multi);
+function animate(el, cells, path, i, style, setFunc) {
+    setFunc(el, cells, path[i], style);
     if (i+1 < path.length) {
-        setTimeout(function (){ animate(cells, path, i+1, style, multi) }, delay);
+        setTimeout(function (){ animate(el, cells, path, i+1, style, setFunc) }, delay);
     }
 }
-function draw(path, style, multi) {
+function draw(id, path, style, multi) {
     var grid = document.getElementById("grid");
     var cells = grid.getElementsByTagName("rect");
+    var el = document.getElementById(id);
+    var setFunc = (multi) ? setMulti : setPos;
     if (typeof running != 'undefined' && running) {
         for (var i=0; i<path.length; i++) {
-            setPos(cells, path[i], style, multi)
+            setFunc(el, cells, path[i], style);
         }
     } else {
-        animate(cells, path, 0, style, multi);
+        animate(el, cells, path, 0, style, setFunc);
     }
 }`
     p.Script("application/javascript", script)
@@ -153,45 +162,19 @@ function draw(path, style, multi) {
     p.Gend()
 }
 
-// Circle method draws circle at given location
-func (p *Plot) AddCircle(id string, x int, y int, style string) {
-    p.Gid(id)
-    p.Circle(x*p.cell+p.cell/2, y*p.cell+p.cell/2, int(0.4*float64(p.cell)), style)
-    p.Gend()
-}
-
-type pt struct {
-    Id string
-    X, Y int
-}
-
 // Animate method moves the given object leaving a trail
 func (p *Plot) Animate(id string, path [][2]int, style map[string]string) {
-    points := make([]pt, len(path))
-    for i, p := range path {
-        points[i] = pt{ Id:id, X:p[0], Y:p[1] }
-    }
-    data, _  := json.Marshal(points)
+    data, _  := json.Marshal(path)
     sdata, _ := json.Marshal(style)
-    script := fmt.Sprintf("var path = %s;\ndraw(path, %s);\n", data, sdata)
+    script := fmt.Sprintf("var path = %s;\ndraw(\"%s\",path,%s);\n", data, id, sdata)
     p.Script("application/javascript", script)
 }
 
-type pt2 struct {
-    Id string
-    X, Y, C int
-}
-
 // AnimateMulti method moves a set of objects
-func (p *Plot) AnimateMulti(idBase string, path [][4]int, styles []string) {
-    points := make([]pt2, len(path))
-    for i, p := range path {
-        id := fmt.Sprintf("%s%d", idBase, p[0])
-        points[i] = pt2{ Id:id, X:p[1], Y:p[2], C:p[3] }
-    }
-    data, _  := json.Marshal(points)
+func (p *Plot) AnimateMulti(id string, path [][][4]int, styles []string) {
+    data, _  := json.Marshal(path)
     sdata, _ := json.Marshal(styles)
-    script := fmt.Sprintf("var path = %s;\ndraw(path, %s, true);\n", data, sdata)
+    script := fmt.Sprintf("var path = %s;\ndraw(\"%s\",path,%s,true);\n", data, id, sdata)
     p.Script("application/javascript", script)
 }
 
